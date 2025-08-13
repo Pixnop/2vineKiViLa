@@ -13,7 +13,9 @@ const CONFIG = {
         popular: 1000000,
         discovery: 10000,
         expert: 1000
-    }
+    },
+    // MODE DEBUG - Mettre à true pour activer les fonctionnalités de test
+    DEBUG_MODE: false
 };
 
 // État global de l'application
@@ -71,11 +73,14 @@ class GBIFApi {
         const params = {
             hasCoordinate: true,
             hasGeospatialIssue: false,
-            rank: 'SPECIES',
             limit: 300,
-            offset: Math.floor(Math.random() * 10000),
             ...filters
         };
+        
+        // Si pas d'offset défini, en créer un aléatoire
+        if (!params.offset) {
+            params.offset = Math.floor(Math.random() * 10000);
+        }
 
         return this.makeRequest('/occurrence/search', params);
     }
@@ -93,6 +98,16 @@ class GBIFApi {
     // Obtenir les médias d'une espèce
     async getSpeciesMedia(taxonKey) {
         return this.makeRequest(`/species/${taxonKey}/media`);
+    }
+    
+    // Obtenir les descriptions d'une espèce
+    async getSpeciesDescriptions(taxonKey) {
+        return this.makeRequest(`/species/${taxonKey}/descriptions`);
+    }
+    
+    // Obtenir les distributions d'une espèce
+    async getSpeciesDistributions(taxonKey) {
+        return this.makeRequest(`/species/${taxonKey}/distributions`);
     }
 
     // Autocomplétion pour les noms d'espèces - recherche élargie
@@ -150,6 +165,17 @@ class GBIFApi {
         });
         return result.count;
     }
+
+    // Recherche d'espèces par classe taxonomique spécifique (pour reptiles)
+    async searchSpeciesByClass(className, limit = 100) {
+        return await this.makeRequest('/species/search', {
+            class: className,
+            rank: 'SPECIES',
+            limit: limit,
+            offset: Math.floor(Math.random() * 500),
+            status: 'ACCEPTED'
+        });
+    }
 }
 
 // Classe pour la sélection intelligente d'espèces
@@ -159,16 +185,35 @@ class SpeciesSelector {
     }
 
     // Sélectionner une espèce selon le mode de jeu
-    async selectSpecies(gameMode, taxonKey = null) {
-        const maxAttempts = 20;
+    async selectSpecies(gameMode, classKey = null) {
+        const maxAttempts = 10;
         let attempts = 0;
 
         while (attempts < maxAttempts) {
             try {
                 updateLoadingStep(`Recherche d'espèces... (${attempts + 1}/${maxAttempts})`);
                 
-                const filters = this.buildFilters(gameMode, taxonKey);
-                const occurrenceData = await this.api.searchOccurrences(filters);
+                // Approche simplifiée : recherche sans filtrage complexe
+                const params = {
+                    hasCoordinate: true,
+                    hasGeospatialIssue: false,
+                    limit: 300,
+                    offset: Math.floor(Math.random() * 10000)
+                };
+                
+                // Si mode thématique, ajouter un filtre par taxon
+                if (classKey && gameMode === 'thematic') {
+                    // Utiliser directement le taxonKey pour filtrer les descendants
+                    params.taxonKey = classKey;
+                    // Réduire l'offset pour les classes avec moins d'occurrences
+                    params.offset = Math.floor(Math.random() * 1000);
+                    
+                    if (CONFIG.DEBUG_MODE) {
+                        console.log(`DEBUG: Recherche thématique avec taxonKey=${classKey}`);
+                    }
+                }
+                
+                const occurrenceData = await this.api.searchOccurrences(params);
                 
                 if (!occurrenceData.results || occurrenceData.results.length === 0) {
                     attempts++;
@@ -185,11 +230,14 @@ class SpeciesSelector {
                     continue;
                 }
 
+                // Mélanger les taxonKeys pour plus d'aléatoire
+                const shuffledTaxonKeys = this.shuffleArray(taxonKeys);
+                
                 // Tester les espèces une par une
                 updateLoadingStep('Évaluation des espèces candidates...');
                 
-                for (const candidateTaxonKey of taxonKeys.slice(0, 10)) {
-                    const species = await this.evaluateSpecies(candidateTaxonKey, gameMode);
+                for (const candidateTaxonKey of shuffledTaxonKeys.slice(0, 10)) {
+                    const species = await this.evaluateSpecies(candidateTaxonKey, gameMode, classKey);
                     if (species) {
                         return species;
                     }
@@ -202,39 +250,104 @@ class SpeciesSelector {
             }
         }
 
-        throw new Error('Impossible de trouver une espèce appropriée après plusieurs tentatives');
-    }
-
-    buildFilters(gameMode, taxonKey) {
-        const filters = {};
-
-        if (taxonKey) {
-            // Mode thématique : rechercher dans une classe spécifique
-            filters.taxonKey = taxonKey;
+        // Si échec en mode thématique, essayer sans filtre
+        if (classKey && gameMode === 'thematic') {
+            console.warn('Recherche thématique échouée, essai sans filtre de classe...');
+            return this.selectSpeciesWithoutClassFilter(gameMode, classKey);
         }
 
+        throw new Error('Impossible de trouver une espèce appropriée après plusieurs tentatives');
+    }
+    
+    // Méthode de secours : recherche sans filtre puis validation
+    async selectSpeciesWithoutClassFilter(gameMode, expectedClassKey) {
+        const maxAttempts = 20;
+        let attempts = 0;
+        
+        while (attempts < maxAttempts) {
+            try {
+                updateLoadingStep(`Recherche élargie... (${attempts + 1}/${maxAttempts})`);
+                
+                // Recherche générale
+                const params = {
+                    hasCoordinate: true,
+                    hasGeospatialIssue: false,
+                    limit: 500,
+                    offset: Math.floor(Math.random() * 50000)
+                };
+                
+                const occurrenceData = await this.api.searchOccurrences(params);
+                
+                if (!occurrenceData.results || occurrenceData.results.length === 0) {
+                    attempts++;
+                    continue;
+                }
+
+                // Extraire et mélanger les taxonKeys
+                const taxonKeys = [...new Set(
+                    occurrenceData.results.map(r => r.taxonKey).filter(key => key)
+                )];
+                
+                const shuffledTaxonKeys = this.shuffleArray(taxonKeys);
+                
+                // Tester plus d'espèces pour trouver une de la bonne classe
+                for (const candidateTaxonKey of shuffledTaxonKeys.slice(0, 30)) {
+                    const species = await this.evaluateSpecies(candidateTaxonKey, gameMode, expectedClassKey);
+                    if (species) {
+                        return species;
+                    }
+                }
+                
+                attempts++;
+            } catch (error) {
+                console.error('Erreur lors de la recherche élargie:', error);
+                attempts++;
+            }
+        }
+        
+        throw new Error('Impossible de trouver une espèce de la classe demandée');
+    }
+    
+    shuffleArray(array) {
+        const shuffled = [...array];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled;
+    }
+
+    buildFilters(gameMode, classKey) {
+        const filters = {};
+
+        // Pour le mode thématique, on ne peut pas filtrer directement par classe
+        // On fera la validation après coup
+        
         // Ajouter des filtres selon le mode
         switch (gameMode) {
             case 'popular':
-                // Pas de filtre spécifique, on gérera côté évaluation
+                // Espèces populaires
+                filters.year = '2020,2024'; // Récentes pour avoir plus de données
                 break;
             case 'discovery':
                 // Filtrer par années récentes pour avoir plus de données
-                filters.year = '2000,2024';
+                filters.year = '2015,2024';
                 break;
             case 'expert':
                 // Filtrer pour des espèces plus rares
                 filters.basisOfRecord = 'HUMAN_OBSERVATION';
+                filters.year = '2010,2024';
                 break;
             case 'thematic':
-                // Déjà géré par taxonKey
+                // Pas de filtre spécifique, on validera la classe après
+                filters.mediaType = 'StillImage'; // Avoir des images
                 break;
         }
 
         return filters;
     }
 
-    async evaluateSpecies(taxonKey, gameMode) {
+    async evaluateSpecies(taxonKey, gameMode, expectedClassKey = null) {
         try {
             updateLoadingStep(`Évaluation de l'espèce ${taxonKey}...`);
 
@@ -243,6 +356,43 @@ class SpeciesSelector {
                 this.api.getSpeciesDetails(taxonKey),
                 this.api.countOccurrences(taxonKey)
             ]);
+            
+            // Si mode thématique, vérifier que l'espèce appartient bien à la classe sélectionnée
+            if (expectedClassKey) {
+                // Les classes exactes dans GBIF
+                const classMapping = {
+                    '212': 'Aves',        // Oiseaux
+                    '359': 'Mammalia',    // Mammifères  
+                    '216': 'Insecta',     // Insectes
+                    '11592253': 'Squamata', // Reptiles (Squamata - lézards, serpents)
+                    '131': 'Amphibia',    // Amphibiens
+                    '238': 'Actinopterygii' // Poissons osseux
+                };
+                
+                const expectedClassName = classMapping[expectedClassKey];
+                if (expectedClassName && speciesDetails.class !== expectedClassName) {
+                    // Debug - afficher la classe réelle vs attendue
+                    if (CONFIG.DEBUG_MODE) {
+                        console.log(`DEBUG: Classe trouvée "${speciesDetails.class}" != attendue "${expectedClassName}" pour ${speciesDetails.scientificName}`);
+                    }
+                    
+                    // Vérifier des variantes possibles du nom de classe
+                    const classVariants = {
+                        'Squamata': ['Squamata'], // Squamata direct (lézards, serpents)
+                        'Aves': ['Aves'],
+                        'Mammalia': ['Mammalia'],
+                        'Insecta': ['Insecta', 'Hexapoda'],
+                        'Amphibia': ['Amphibia'],
+                        'Actinopterygii': ['Actinopterygii', 'Osteichthyes']
+                    };
+                    
+                    const validVariants = classVariants[expectedClassName] || [expectedClassName];
+                    if (!validVariants.includes(speciesDetails.class)) {
+                        console.log(`Espèce ${speciesDetails.scientificName} rejectée : classe "${speciesDetails.class}" non acceptée pour "${expectedClassName}"`);
+                        return null;
+                    }
+                }
+            }
 
             // Vérifier si l'espèce respecte les critères
             if (!this.isSpeciesPlayable(speciesDetails, occurrenceCount, gameMode)) {
@@ -252,9 +402,11 @@ class SpeciesSelector {
             // Obtenir des informations supplémentaires
             updateLoadingStep(`Récupération des détails pour ${speciesDetails.canonicalName}...`);
             
-            const [vernacularNames, media] = await Promise.all([
+            const [vernacularNames, media, descriptions, distributions] = await Promise.all([
                 this.api.getVernacularNames(taxonKey).catch(() => ({ results: [] })),
-                this.api.getSpeciesMedia(taxonKey).catch(() => ({ results: [] }))
+                this.api.getSpeciesMedia(taxonKey).catch(() => ({ results: [] })),
+                this.api.getSpeciesDescriptions(taxonKey).catch(() => ({ results: [] })),
+                this.api.getSpeciesDistributions(taxonKey).catch(() => ({ results: [] }))
             ]);
 
             // Construire l'objet espèce complet
@@ -264,15 +416,18 @@ class SpeciesSelector {
                 vernacularName: this.extractBestVernacularName(vernacularNames.results),
                 taxonomicClass: this.extractTaxonomicInfo(speciesDetails),
                 occurrenceCount,
-                continent: this.extractContinentInfo(speciesDetails),
+                continent: this.extractContinentInfo(distributions.results),
                 image: this.extractBestImage(media.results),
-                description: speciesDetails.description,
+                descriptions: this.extractDescriptions(descriptions.results),
+                distributions: this.extractDistributions(distributions.results),
                 kingdom: speciesDetails.kingdom,
                 phylum: speciesDetails.phylum,
                 class: speciesDetails.class,
                 order: speciesDetails.order,
                 family: speciesDetails.family,
-                genus: speciesDetails.genus
+                genus: speciesDetails.genus,
+                habitat: speciesDetails.habitat,
+                threatStatus: speciesDetails.threatStatus
             };
 
             return species;
@@ -359,10 +514,57 @@ class SpeciesSelector {
         };
     }
 
-    extractContinentInfo(speciesDetails) {
-        // Pour l'instant, on ne peut pas facilement extraire les continents depuis les détails de l'espèce
-        // On pourrait implémenter une logique plus complexe avec les occurrences géographiques
-        return ['Informations géographiques à déterminer'];
+    extractContinentInfo(distributions) {
+        if (!distributions || distributions.length === 0) {
+            return [];
+        }
+        
+        // Extraire les pays et localités
+        const locations = distributions.map(d => d.locality || d.country || '').filter(l => l);
+        return [...new Set(locations)].slice(0, 5); // Limiter à 5 localisations
+    }
+    
+    extractDescriptions(descriptions) {
+        if (!descriptions || descriptions.length === 0) {
+            return {};
+        }
+        
+        const descObj = {};
+        descriptions.forEach(desc => {
+            if (desc.type && desc.description) {
+                // Stocker par type de description
+                descObj[desc.type] = desc.description;
+            }
+        });
+        
+        return descObj;
+    }
+    
+    extractDistributions(distributions) {
+        if (!distributions || distributions.length === 0) {
+            return [];
+        }
+        
+        return distributions
+            .map(d => ({
+                location: d.locality || d.country || d.locationId,
+                status: d.status,
+                establishmentMeans: d.establishmentMeans
+            }))
+            .filter(d => d.location && this.isValidLocation(d.location));
+    }
+    
+    isValidLocation(location) {
+        if (!location || typeof location !== 'string') return false;
+        
+        // Filtrer les localisations peu informatives
+        const invalidLocations = [
+            'global', 'world', 'worldwide', 'cosmopolitan', 'unknown',
+            'not specified', 'unspecified', 'various', 'multiple',
+            'widespread', 'pantropical', 'circumglobal'
+        ];
+        
+        return !invalidLocations.includes(location.toLowerCase().trim());
     }
 }
 
@@ -387,8 +589,8 @@ class GameUI {
         // Sélection de thème
         document.querySelectorAll('.theme-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const taxonKey = e.currentTarget.dataset.taxon;
-                this.selectTheme(taxonKey);
+                const classKey = e.currentTarget.dataset.taxon;
+                this.selectTheme(classKey);
             });
         });
 
@@ -397,6 +599,11 @@ class GameUI {
             this.showScreen('home');
             document.getElementById('theme-selection').classList.add('hidden');
         });
+        
+        // Mode debug : raccourcis clavier
+        if (CONFIG.DEBUG_MODE) {
+            this.initDebugControls();
+        }
 
         // Contrôles de jeu
         document.getElementById('hint-btn').addEventListener('click', () => this.showHint());
@@ -452,6 +659,61 @@ class GameUI {
         document.getElementById('stats-btn').addEventListener('click', () => this.showStats());
         document.getElementById('close-stats-btn').addEventListener('click', () => this.hideStats());
     }
+    
+    initDebugControls() {
+        console.log('🐛 Mode DEBUG activé ! Raccourcis disponibles :');
+        console.log('- Ctrl+D : Afficher les réponses');
+        console.log('- Ctrl+H : Révéler tous les indices');
+        console.log('- Ctrl+S : Passer à l\'espèce suivante');
+        console.log('- Ctrl+W : Forcer une réponse correcte');
+        
+        document.addEventListener('keydown', (e) => {
+            if (!e.ctrlKey || GameState.currentScreen !== 'game') return;
+            
+            switch(e.key.toLowerCase()) {
+                case 'd':
+                    e.preventDefault();
+                    this.debugShowAnswers();
+                    break;
+                case 'h':
+                    e.preventDefault();
+                    this.debugShowAllHints();
+                    break;
+                case 's':
+                    e.preventDefault();
+                    this.nextSpecies();
+                    break;
+                case 'w':
+                    e.preventDefault();
+                    this.debugAutoWin();
+                    break;
+            }
+        });
+    }
+    
+    debugShowAnswers() {
+        const species = GameState.currentSpecies;
+        const answers = [
+            species.scientificName,
+            species.vernacularName,
+            species.genus
+        ].filter(name => name);
+        
+        alert(`🐛 DEBUG - Réponses acceptées :\n${answers.join('\n')}`);
+    }
+    
+    debugShowAllHints() {
+        while (GameState.hintsUsed < GameState.maxHints) {
+            this.showHint();
+        }
+    }
+    
+    debugAutoWin() {
+        const species = GameState.currentSpecies;
+        const winAnswer = species.vernacularName || species.scientificName;
+        document.getElementById('species-input').value = winAnswer;
+        this.checkAnswer();
+    }
 
     selectGameMode(mode) {
         GameState.gameMode = mode;
@@ -463,8 +725,8 @@ class GameUI {
         }
     }
 
-    selectTheme(taxonKey) {
-        GameState.selectedTaxon = taxonKey;
+    selectTheme(classKey) {
+        GameState.selectedTaxon = classKey;
         this.startGame();
     }
 
@@ -520,8 +782,51 @@ class GameUI {
         document.getElementById('submit-btn').disabled = false;
         document.getElementById('hint-btn').disabled = GameState.hintsUsed >= GameState.maxHints;
 
+        // Mode debug : afficher les informations de l'espèce
+        if (CONFIG.DEBUG_MODE) {
+            this.showDebugInfo();
+        }
+
         // Initialiser la carte
         await this.initMap();
+    }
+    
+    showDebugInfo() {
+        const species = GameState.currentSpecies;
+        console.group('🐛 MODE DEBUG - Informations de l\'espèce');
+        console.log('Nom scientifique:', species.scientificName);
+        console.log('Nom vernaculaire:', species.vernacularName);
+        console.log('TaxonKey:', species.taxonKey);
+        console.log('Classe:', species.class);
+        console.log('Famille:', species.family);
+        console.log('Genre:', species.genus);
+        console.log('Occurrences:', species.occurrenceCount);
+        console.log('Image:', species.image);
+        console.groupEnd();
+        
+        // Afficher un panneau debug dans l'interface (optionnel)
+        const debugPanel = document.getElementById('debug-panel') || this.createDebugPanel();
+        debugPanel.innerHTML = `
+            <h4>🐛 DEBUG</h4>
+            <p><strong>Réponses acceptées :</strong></p>
+            <ul>
+                ${species.scientificName ? `<li><code>${species.scientificName}</code></li>` : ''}
+                ${species.vernacularName ? `<li><code>${species.vernacularName}</code></li>` : ''}
+                ${species.genus ? `<li><code>${species.genus}</code> (genre)</li>` : ''}
+            </ul>
+            <p><strong>TaxonKey :</strong> ${species.taxonKey}</p>
+            <p><strong>Occurrences :</strong> ${species.occurrenceCount?.toLocaleString()}</p>
+            <button onclick="this.parentElement.style.display='none'">Masquer</button>
+        `;
+        debugPanel.style.display = 'block';
+    }
+    
+    createDebugPanel() {
+        const panel = document.createElement('div');
+        panel.id = 'debug-panel';
+        panel.className = 'debug-panel';
+        document.querySelector('.game-panel').appendChild(panel);
+        return panel;
     }
 
     async initMap() {
@@ -652,19 +957,46 @@ class GameUI {
         
         let hintText = '';
         
-        switch (GameState.hintsUsed) {
-            case 0:
-                hintText = `🔍 <strong>Classe:</strong> ${species.class || 'Non spécifiée'}`;
-                break;
-            case 1:
-                hintText = `📊 <strong>Observations:</strong> ${species.occurrenceCount.toLocaleString()} dans GBIF`;
-                break;
-            case 2:
-                hintText = `🌍 <strong>Famille:</strong> ${species.family || 'Non spécifiée'}`;
-                break;
-            case 3:
-                hintText = `💡 <strong>Première lettre:</strong> ${(species.vernacularName || species.scientificName).charAt(0).toUpperCase()}`;
-                break;
+        // Adapter les indices selon le mode de jeu
+        if (GameState.gameMode === 'thematic') {
+            // En mode thématique, informations spécialisées pour professionnels
+            // JAMAIS d'ordre puisqu'on a déjà sélectionné la classe
+            switch (GameState.hintsUsed) {
+                case 0:
+                    hintText = this.getThematicEcologyHint(species);
+                    break;
+                case 1:
+                    hintText = this.getThematicHabitatHint(species);
+                    break;
+                case 2:
+                    hintText = this.getThematicMorphologyHint(species);
+                    break;
+                case 3:
+                    hintText = `💡 <strong>Première lettre:</strong> ${(species.vernacularName || species.scientificName).charAt(0).toUpperCase()}`;
+                    break;
+            }
+        } else {
+            // Mode normal avec explications pour le grand public
+            switch (GameState.hintsUsed) {
+                case 0:
+                    // En mode normal, on donne d'abord le type d'animal seulement si pas évident
+                    hintText = this.getTaxonomicHint(species);
+                    break;
+                case 1:
+                    hintText = this.getDescriptionHint(species);
+                    break;
+                case 2:
+                    hintText = this.getHabitatOrDistributionHint(species);
+                    break;
+                case 3:
+                    hintText = `💡 <strong>Première lettre:</strong> ${(species.vernacularName || species.scientificName).charAt(0).toUpperCase()}`;
+                    break;
+            }
+        }
+        
+        // DEBUG: Vérifier le mode de jeu
+        if (CONFIG.DEBUG_MODE) {
+            console.log(`DEBUG: Mode de jeu = ${GameState.gameMode}, Indice ${GameState.hintsUsed + 1}: ${hintText}`);
         }
 
         const hintElement = document.createElement('div');
@@ -678,6 +1010,673 @@ class GameUI {
         // Désactiver le bouton si tous les indices sont utilisés
         if (GameState.hintsUsed >= GameState.maxHints) {
             document.getElementById('hint-btn').disabled = true;
+        }
+    }
+    
+    getTaxonomicHint(species) {
+        // Indice taxonomique intelligent
+        if (species.class === 'Aves') {
+            return `🦅 <strong>Type d'animal:</strong> C'est un oiseau`;
+        } else if (species.class === 'Mammalia') {
+            return `🦬 <strong>Type d'animal:</strong> C'est un mammifère`;
+        } else if (species.class === 'Reptilia') {
+            return `🦎 <strong>Type d'animal:</strong> C'est un reptile`;
+        } else if (species.class === 'Amphibia') {
+            return `🐸 <strong>Type d'animal:</strong> C'est un amphibien`;
+        } else if (species.class === 'Insecta') {
+            return `🦋 <strong>Type d'animal:</strong> C'est un insecte`;
+        } else if (species.class === 'Actinopterygii') {
+            return `🐟 <strong>Type d'animal:</strong> C'est un poisson osseux`;
+        } else if (species.kingdom === 'Plantae') {
+            return `🌿 <strong>Type d'organisme:</strong> C'est une plante`;
+        } else if (species.kingdom === 'Fungi') {
+            return `🍄 <strong>Type d'organisme:</strong> C'est un champignon`;
+        } else {
+            return `🔍 <strong>Classe:</strong> ${species.class || 'Non spécifiée'}`;
+        }
+    }
+    
+    getDescriptionHint(species) {
+        // Utiliser les vraies descriptions de l'API GBIF
+        if (!species.descriptions || Object.keys(species.descriptions).length === 0) {
+            // Fallback intelligent basé sur la famille pour les reptiles
+            if (species.class === 'Squamata') {
+                return this.getSquamataGeneralInfo(species);
+            }
+            // Fallback sur l'ordre taxonomique pour les autres
+            return `🏛️ <strong>Famille:</strong> ${species.family || species.class}`;
+        }
+        
+        // Priorités pour les types de descriptions utiles
+        const priorityTypes = [
+            'morphology',
+            'diagnostic_description',
+            'biology',
+            'behaviour',
+            'habitat', 
+            'description',
+            'general',
+            'ecology',
+            'distribution'
+        ];
+        
+        for (const type of priorityTypes) {
+            if (species.descriptions[type]) {
+                let desc = species.descriptions[type];
+                // Nettoyer et raccourcir la description
+                desc = this.cleanDescription(desc);
+                if (desc.length > 0) {
+                    const icon = this.getDescriptionIcon(type);
+                    return `${icon} <strong>${this.getDescriptionLabel(type)}:</strong> ${desc}`;
+                }
+            }
+        }
+        
+        // Si aucune description utilisable, donner des infos sur la famille
+        return `🏛️ <strong>Famille:</strong> ${species.family || 'Non spécifiée'}`;
+    }
+    
+    getHabitatOrDistributionHint(species) {
+        // Prioriser uniquement les descriptions d'habitat écologique (pas de distribution géographique)
+        if (species.descriptions) {
+            const habitatTypes = ['habitat', 'ecology'];
+            for (const type of habitatTypes) {
+                if (species.descriptions[type]) {
+                    const desc = this.cleanDescription(species.descriptions[type]);
+                    // Filtrer les descriptions qui mentionnent uniquement la géographie
+                    if (desc && desc.length > 10 && !this.isGeographicDescription(desc)) {
+                        return `🌳 <strong>Habitat:</strong> ${desc}`;
+                    }
+                }
+            }
+        }
+        
+        // Essayer les distributions pour les infos géographiques UTILES (pas redondantes avec la carte)
+        if (species.distributions && species.distributions.length > 0) {
+            const habitatInfo = this.extractHabitatFromDistribution(species.distributions);
+            if (habitatInfo) {
+                return habitatInfo;
+            }
+        }
+        
+        // Pour les reptiles, donner des informations basées sur le genre/famille
+        if (species.class === 'Squamata') {
+            return this.getSquamataEcologyInfo(species);
+        }
+        
+        // En mode thématique, donner la famille (pas l'ordre qui est redondant)
+        if (GameState.gameMode === 'thematic' && species.family) {
+            return `🏛️ <strong>Famille:</strong> ${species.family}`;
+        }
+        
+        // En mode normal, donner des informations explicatives sur l'ordre
+        if (GameState.gameMode !== 'thematic' && species.order && species.order !== 'Non spécifié') {
+            const orderHint = this.getOrderBasedHint(species);
+            if (orderHint) {
+                return orderHint;
+            }
+        }
+        
+        // Fallback sur la famille
+        return `🏛️ <strong>Famille:</strong> ${species.family || 'Non spécifiée'}`;
+    }
+    
+    extractHabitatFromDistribution(distributions) {
+        // Chercher des informations d'habitat plutôt que juste géographiques
+        for (const dist of distributions) {
+            if (dist.locality) {
+                const locality = dist.locality.toLowerCase();
+                // Infos utiles non visibles sur la carte
+                if (locality.includes('wetland') || locality.includes('marsh') || locality.includes('swamp')) {
+                    return `🌊 <strong>Habitat:</strong> Zones humides et marécages`;
+                } else if (locality.includes('desert')) {
+                    return `🏜️ <strong>Habitat:</strong> Environnements désertiques`;
+                } else if (locality.includes('forest') || locality.includes('woodland')) {
+                    return `🌲 <strong>Habitat:</strong> Forêts et zones boisées`;
+                } else if (locality.includes('coastal') || locality.includes('marine')) {
+                    return `🏖️ <strong>Habitat:</strong> Zones côtières`;
+                } else if (locality.includes('mountain') || locality.includes('alpine')) {
+                    return `⛰️ <strong>Habitat:</strong> Régions montagneuses`;
+                }
+            }
+        }
+        return null;
+    }
+    
+    getSquamataEcologyInfo(species) {
+        const genus = species.genus?.toLowerCase() || '';
+        const family = species.family?.toLowerCase() || '';
+        
+        // Informations écologiques spécifiques
+        if (genus.includes('agkistrodon')) {
+            return `🌊 <strong>Écologie:</strong> Serpent semi-aquatique, active près de l'eau`;
+        } else if (family.includes('viper')) {
+            return `🌡️ <strong>Activité:</strong> Serpent principalement crépusculaire et nocturne`;
+        } else if (family.includes('python')) {
+            return `🌙 <strong>Activité:</strong> Serpent principalement nocturne, ambush predator`;
+        } else if (family.includes('gecko')) {
+            return `🌙 <strong>Activité:</strong> Lézard nocturne, grimpe sur les surfaces lisses`;
+        } else if (family.includes('iguan')) {
+            return `☀️ <strong>Thermorégulation:</strong> Lézard héliophile, se réchauffe au soleil`;
+        } else if (family.includes('scinc')) {
+            return `🏃 <strong>Comportement:</strong> Lézard agile, souvent fouisseur`;
+        } else {
+            return `🏛️ <strong>Famille:</strong> ${species.family}`;
+        }
+    }
+    
+    isGeographicDescription(description) {
+        // Filtrer les descriptions qui ne contiennent que de la géographie (déjà visible sur carte)
+        const geographicKeywords = [
+            'britain', 'scandinavia', 'france', 'europe', 'siberia', 'russia', 'asia',
+            'america', 'africa', 'australia', 'continent', 'country', 'region',
+            'north', 'south', 'east', 'west', 'central', 'distribution',
+            'distributed', 'found in', 'occurs in', 'native to', 'endemic to',
+            'range', 'widespread', 'common in', 'abundant in', 'river', 'sea'
+        ];
+        
+        const desc = description.toLowerCase();
+        
+        // Si la description contient principalement des mots géographiques
+        const geographicWordsCount = geographicKeywords.filter(keyword => 
+            desc.includes(keyword)
+        ).length;
+        
+        const totalWords = desc.split(' ').length;
+        
+        // Si plus de 40% des informations sont géographiques, on considère que c'est redondant
+        return geographicWordsCount > 3 || (geographicWordsCount / totalWords > 0.4);
+    }
+    
+    isSpecificLocation(location) {
+        if (!this.isValidLocation(location)) return false;
+        
+        // Vérifier que c'est assez spécifique
+        const tooGeneral = [
+            'africa', 'asia', 'europe', 'america', 'oceania',
+            'north america', 'south america', 'central america',
+            'mediterranean', 'tropical', 'temperate', 'arctic',
+            'atlantic', 'pacific', 'indian ocean'
+        ];
+        
+        return !tooGeneral.includes(location.toLowerCase().trim());
+    }
+    
+    formatLocations(locations) {
+        if (locations.length <= 2) {
+            return `Présent en ${locations.join(' et ')}`;
+        } else if (locations.length === 3) {
+            return `Présent en ${locations[0]}, ${locations[1]} et ${locations[2]}`;
+        } else {
+            return `Présent en ${locations.slice(0, 3).join(', ')} et autres régions`;
+        }
+    }
+    
+    getOrderBasedHint(species) {
+        // Pour le grand public uniquement - donner des informations explicatives sur l'ordre
+        const order = species.order;
+        const classType = species.class;
+        
+        // Indices explicatifs pour le grand public (mode non-thématique)
+        if (classType === 'Aves') {
+            const birdHints = {
+                'Passeriformes': '🎵 <strong>Type:</strong> Oiseau chanteur (passereaux)',
+                'Falconiformes': '🦅 <strong>Type:</strong> Rapace diurne', 
+                'Strigiformes': '🦉 <strong>Type:</strong> Rapace nocturne',
+                'Anseriformes': '🦆 <strong>Type:</strong> Oiseau aquatique (canards, oies)',
+                'Galliformes': '🐓 <strong>Type:</strong> Gallinacé (poules, faisans)'
+            };
+            return birdHints[order] || `🏛️ <strong>Ordre:</strong> ${order}`;
+        }
+        
+        if (classType === 'Mammalia') {
+            const mammalHints = {
+                'Carnivora': '🦁 <strong>Régime:</strong> Carnivore',
+                'Chiroptera': '🦇 <strong>Type:</strong> Chauve-souris',
+                'Cetacea': '🐋 <strong>Milieu:</strong> Mammifère marin',
+                'Proboscidea': '🐘 <strong>Type:</strong> Éléphant'
+            };
+            return mammalHints[order] || `🏛️ <strong>Ordre:</strong> ${order}`;
+        }
+        
+        // Pour les autres classes, afficher l'ordre directement
+        return `🏛️ <strong>Ordre:</strong> ${order}`;
+    }
+    
+    getSquamataTypeHint(species) {
+        // Déterminer le type de Squamata basé sur la famille
+        const family = species.family?.toLowerCase() || '';
+        
+        if (family.includes('python') || family.includes('boa')) {
+            return `🐍 <strong>Type:</strong> Serpent constricteur (famille des ${species.family})`;
+        } else if (family.includes('viper') || family.includes('crotal') || family.includes('elap')) {
+            return `🐍 <strong>Type:</strong> Serpent venimeux (famille des ${species.family})`;
+        } else if (family.includes('colubr') || family.includes('natric') || family.includes('serpent')) {
+            return `🐍 <strong>Type:</strong> Serpent (famille des ${species.family})`;
+        } else if (family.includes('gecko') || family.includes('gekkon')) {
+            return `🦎 <strong>Type:</strong> Gecko (famille des ${species.family})`;
+        } else if (family.includes('lacert') || family.includes('scinc') || family.includes('agam') || family.includes('iguan')) {
+            return `🦎 <strong>Type:</strong> Lézard (famille des ${species.family})`;
+        } else if (family.includes('chamae')) {
+            return `🦎 <strong>Type:</strong> Caméléon (famille des ${species.family})`;
+        } else if (family.includes('monitor') || family.includes('varan')) {
+            return `🦎 <strong>Type:</strong> Varan (famille des ${species.family})`;
+        } else if (species.family) {
+            return `🏛️ <strong>Famille:</strong> ${species.family}`;
+        } else {
+            return `🏛️ <strong>Ordre:</strong> Squamata (lézards et serpents)`;
+        }
+    }
+    
+    getSquamataGeneralInfo(species) {
+        const family = species.family?.toLowerCase() || '';
+        const genus = species.genus?.toLowerCase() || '';
+        
+        // Informations spécifiques par famille de reptiles
+        if (family.includes('viper') || family.includes('crotalidae')) {
+            return `⚠️ <strong>Dangerosité:</strong> Serpent venimeux à crochets rétractables`;
+        } else if (family.includes('elapidae')) {
+            return `⚠️ <strong>Dangerosité:</strong> Serpent très venimeux (corail, cobra, mamba)`;
+        } else if (family.includes('python')) {
+            return `🔄 <strong>Chasse:</strong> Serpent constricteur, tue par étouffement`;
+        } else if (family.includes('boa')) {
+            return `🔄 <strong>Chasse:</strong> Serpent constricteur de taille moyenne à grande`;
+        } else if (family.includes('colubr')) {
+            return `🐍 <strong>Caractéristique:</strong> Serpent généralement non venimeux`;
+        } else if (family.includes('gecko')) {
+            return `🦎 <strong>Adaptation:</strong> Lézard nocturne aux doigts adhésifs`;
+        } else if (family.includes('iguan')) {
+            return `🦎 <strong>Régime:</strong> Lézard herbivore ou omnivore`;
+        } else if (family.includes('agam') || family.includes('dragon')) {
+            return `🦎 <strong>Comportement:</strong> Lézard diurne souvent territorial`;
+        } else if (family.includes('varan') || family.includes('monitor')) {
+            return `🦎 <strong>Taille:</strong> Grand lézard carnivore intelligent`;
+        } else if (family.includes('scinc')) {
+            return `🦎 <strong>Habitat:</strong> Lézard fouisseur aux écailles lisses`;
+        } else if (genus.includes('agkistrodon')) {
+            return `🌊 <strong>Habitat:</strong> Serpent semi-aquatique des zones humides`;
+        } else {
+            return `🏛️ <strong>Famille:</strong> ${species.family}`;
+        }
+    }
+    
+    // === NOUVEAUX INDICES THÉMATIQUES BASÉS SUR LES VRAIES DONNÉES GBIF ===
+    
+    getThematicEcologyHint(species) {
+        // Indice 1 : Écologie et comportement basé sur les vraies données GBIF
+        
+        // 1. Essayer les descriptions d'écologie/biologie
+        if (species.descriptions) {
+            const ecologyTypes = ['biology', 'behaviour', 'ecology', 'life_history'];
+            for (const type of ecologyTypes) {
+                if (species.descriptions[type]) {
+                    const cleanDesc = this.cleanDescription(species.descriptions[type]);
+                    if (cleanDesc && cleanDesc.length > 10) {
+                        return `🧬 <strong>Biologie:</strong> ${cleanDesc}`;
+                    }
+                }
+            }
+        }
+        
+        // 2. Informations basées sur le nom vernaculaire
+        const vernacularName = species.vernacularName?.toLowerCase() || '';
+        if (vernacularName.includes('cat-eyed')) {
+            return `👁️ <strong>Adaptation:</strong> Serpent aux pupilles verticales (vision nocturne)`;
+        } else if (vernacularName.includes('rat snake') || vernacularName.includes('rat-snake')) {
+            return `🐀 <strong>Régime:</strong> Spécialisé dans la chasse aux rongeurs`;
+        } else if (vernacularName.includes('water') || vernacularName.includes('aquatic')) {
+            return `🌊 <strong>Écologie:</strong> Serpent semi-aquatique`;
+        } else if (vernacularName.includes('tree') || vernacularName.includes('arboreal')) {
+            return `🌳 <strong>Habitat:</strong> Serpent arboricole`;
+        }
+        
+        // 3. Informations basées sur la famille selon la classe
+        const family = species.family?.toLowerCase() || '';
+        const order = species.order?.toLowerCase() || '';
+        
+        if (species.class === 'Squamata') {
+            if (family.includes('colubr')) {
+                return `🐍 <strong>Comportement:</strong> Serpent généralement diurne, actif chasseur`;
+            } else if (family.includes('viper')) {
+                return `⚡ <strong>Chasse:</strong> Serpent à détection thermique, embuscade`;
+            } else if (family.includes('python')) {
+                return `🔄 <strong>Stratégie:</strong> Prédateur ambusheur, constriction puissante`;
+            } else if (family.includes('elap')) {
+                return `💀 <strong>Venin:</strong> Neurotoxique, très dangereux`;
+            }
+        } else if (species.class === 'Aves') {
+            if (order.includes('passeri')) {
+                return `🎵 <strong>Comportement:</strong> Oiseau chanteur, vocalises complexes`;
+            } else if (order.includes('falcon') || order.includes('accipitri')) {
+                return `🦅 <strong>Chasse:</strong> Rapace diurne, vision perçante`;
+            } else if (order.includes('strigiformes')) {
+                return `🦉 <strong>Chasse:</strong> Rapace nocturne, audition exceptionnelle`;
+            } else if (family.includes('corvid')) {
+                return `🧠 <strong>Intelligence:</strong> Oiseaux très intelligents, utilisation d'outils`;
+            }
+        } else if (species.class === 'Mammalia') {
+            if (order.includes('carniv')) {
+                return `🦷 <strong>Régime:</strong> Carnivore, dentition adaptée à la prédation`;
+            } else if (order.includes('rodent') || order.includes('rodentia')) {
+                return `🦷 <strong>Adaptation:</strong> Incisives à croissance continue`;
+            } else if (order.includes('chiropter')) {
+                return `🦇 <strong>Adaptation:</strong> Seul mammifère volant, écholocation`;
+            } else if (family.includes('felid')) {
+                return `🐾 <strong>Chasse:</strong> Prédateur solitaire, griffes rétractiles`;
+            }
+        } else if (species.class === 'Insecta') {
+            if (order.includes('dipter')) {
+                return `✈️ <strong>Vol:</strong> Insecte à deux ailes, vol très agile`;
+            } else if (order.includes('lepidopter')) {
+                return `🦋 <strong>Métamorphose:</strong> Transformation complète chenille→papillon`;
+            } else if (order.includes('coleopter')) {
+                return `🛡️ <strong>Protection:</strong> Élytres rigides protégeant les ailes`;
+            } else if (family.includes('asilid')) {
+                return `🏹 <strong>Chasse:</strong> Mouche prédatrice, capture proies en vol`;
+            }
+        }
+        
+        // 4. Fallback sur le genre
+        return `🏛️ <strong>Genre:</strong> ${species.genus}`;
+    }
+    
+    getThematicHabitatHint(species) {
+        // Indice 2 : Habitat et répartition écologique
+        
+        // 1. Descriptions d'habitat des données GBIF
+        if (species.descriptions) {
+            const habitatTypes = ['habitat', 'ecology', 'distribution'];
+            for (const type of habitatTypes) {
+                if (species.descriptions[type]) {
+                    const cleanDesc = this.cleanDescription(species.descriptions[type]);
+                    if (cleanDesc && cleanDesc.length > 10 && this.containsHabitatInfo(cleanDesc)) {
+                        return `🌍 <strong>Habitat:</strong> ${cleanDesc}`;
+                    }
+                }
+            }
+        }
+        
+        // 2. Analyser les distributions pour extraire l'écosystème
+        if (species.distributions && species.distributions.length > 0) {
+            const ecosystemInfo = this.extractEcosystemFromDistributions(species.distributions);
+            if (ecosystemInfo) {
+                return ecosystemInfo;
+            }
+        }
+        
+        // 3. Informations générales basées sur la famille selon la classe
+        const family = species.family?.toLowerCase() || '';
+        const order = species.order?.toLowerCase() || '';
+        
+        if (species.class === 'Squamata') {
+            if (family.includes('colubr')) {
+                return `🌲 <strong>Écosystème:</strong> Forêts tropicales et zones boisées`;
+            } else if (family.includes('viper')) {
+                return `🍂 <strong>Écosystème:</strong> Zones de broussailles et lisières forestières`;
+            } else if (family.includes('python')) {
+                return `🌴 <strong>Écosystème:</strong> Forêts tropicales denses et humides`;
+            }
+        } else if (species.class === 'Aves') {
+            if (order.includes('passeri')) {
+                return `🌳 <strong>Habitat:</strong> Forêts, jardins et zones arborées`;
+            } else if (family.includes('corvid')) {
+                return `🏘️ <strong>Habitat:</strong> Adaptable, zones urbaines et rurales`;
+            } else if (order.includes('falcon') || order.includes('accipitri')) {
+                return `🏔️ <strong>Habitat:</strong> Territoires ouverts, chasse en altitude`;
+            }
+        } else if (species.class === 'Mammalia') {
+            if (order.includes('carniv')) {
+                return `🌲 <strong>Territoire:</strong> Prédateur territorial, grande aire de chasse`;
+            } else if (family.includes('felid')) {
+                return `🌿 <strong>Habitat:</strong> Forêts et zones boisées, territoires étendus`;
+            }
+        } else if (species.class === 'Insecta') {
+            if (order.includes('dipter')) {
+                return `🌺 <strong>Habitat:</strong> Zones florales, reproduction près de l'eau`;
+            } else if (family.includes('asilid')) {
+                return `☀️ <strong>Habitat:</strong> Zones ensoleillées, perchoirs pour chasser`;
+            }
+        }
+        
+        // 4. Fallback sur la répartition générale
+        return `🏛️ <strong>Famille:</strong> ${species.family}`;
+    }
+    
+    getThematicMorphologyHint(species) {
+        // Indice 3 : Morphologie et caractères diagnostiques
+        
+        // 1. Descriptions morphologiques des données GBIF
+        if (species.descriptions) {
+            const morphTypes = ['morphology', 'diagnostic_description', 'description'];
+            for (const type of morphTypes) {
+                if (species.descriptions[type]) {
+                    const cleanDesc = this.cleanDescription(species.descriptions[type]);
+                    if (cleanDesc && cleanDesc.length > 10) {
+                        return `📏 <strong>Morphologie:</strong> ${cleanDesc}`;
+                    }
+                }
+            }
+        }
+        
+        // 2. Caractéristiques basées sur le nom vernaculaire
+        const vernacularName = species.vernacularName?.toLowerCase() || '';
+        if (vernacularName.includes('cat-eyed')) {
+            return `👁️ <strong>Caractéristique:</strong> Pupilles verticales distinctives`;
+        } else if (vernacularName.includes('northern')) {
+            return `🧭 <strong>Répartition:</strong> Populations plus septentrionales de l'espèce`;
+        } else if (vernacularName.includes('ornata') || vernacularName.includes('ornate')) {
+            return `🎨 <strong>Coloration:</strong> Motifs ornementaux distinctifs`;
+        }
+        
+        // 3. Informations morphologiques basées sur la famille selon la classe
+        const family = species.family?.toLowerCase() || '';
+        const order = species.order?.toLowerCase() || '';
+        
+        if (species.class === 'Squamata') {
+            if (family.includes('colubr')) {
+                return `🦷 <strong>Dentition:</strong> Serpent aglyphe (dents non venimeuses)`;
+            } else if (family.includes('viper')) {
+                return `🦷 <strong>Dentition:</strong> Crochets venimeux rétractables`;
+            } else if (family.includes('python')) {
+                return `📐 <strong>Taille:</strong> Serpent de grande taille, corps massif`;
+            }
+        } else if (species.class === 'Aves') {
+            if (order.includes('passeri')) {
+                return `🎵 <strong>Anatomie:</strong> Syrinx développé pour le chant`;
+            } else if (family.includes('corvid')) {
+                return `🧠 <strong>Cerveau:</strong> Ratio cerveau/corps élevé`;
+            } else if (order.includes('falcon') || order.includes('accipitri')) {
+                return `👁️ <strong>Vision:</strong> Acuité visuelle 8x supérieure à l'humain`;
+            }
+        } else if (species.class === 'Mammalia') {
+            if (order.includes('carniv')) {
+                return `🦷 <strong>Dentition:</strong> Carnassières pour découper la viande`;
+            } else if (family.includes('felid')) {
+                return `🐾 <strong>Locomotion:</strong> Pattes digitigrades, marche silencieuse`;
+            }
+        } else if (species.class === 'Insecta') {
+            if (order.includes('dipter')) {
+                return `⚖️ <strong>Équilibre:</strong> Haltères remplacent la 2e paire d'ailes`;
+            } else if (family.includes('asilid')) {
+                return `👁️ <strong>Vision:</strong> Yeux composés très développés pour la chasse`;
+            }
+        }
+        
+        // 4. Fallback sur le nom scientifique
+        const speciesEpithet = species.scientificName.split(' ')[1] || '';
+        return `🏷️ <strong>Épithète spécifique:</strong> "${speciesEpithet}"`;
+    }
+    
+    // Méthodes utilitaires pour les indices thématiques
+    containsHabitatInfo(text) {
+        const habitatKeywords = ['forest', 'grassland', 'savanna', 'rocky', 'elevation', 'habitat', 'occur'];
+        return habitatKeywords.some(keyword => text.toLowerCase().includes(keyword));
+    }
+    
+    extractEcosystemFromDistributions(distributions) {
+        for (const dist of distributions) {
+            if (dist.locality) {
+                const loc = dist.locality.toLowerCase();
+                if (loc.includes('forest') || loc.includes('forêt')) {
+                    return `🌲 <strong>Écosystème:</strong> Forêts tropicales`;
+                } else if (loc.includes('savanna') || loc.includes('cerrado')) {
+                    return `🌾 <strong>Écosystème:</strong> Savanes et prairies`;
+                } else if (loc.includes('atlantic') && loc.includes('forest')) {
+                    return `🌿 <strong>Écosystème:</strong> Forêt atlantique (biodiversité élevée)`;
+                } else if (loc.includes('caatinga')) {
+                    return `🌵 <strong>Écosystème:</strong> Caatinga (forêt sèche tropicale)`;
+                } else if (loc.includes('montane') || loc.includes('elevation')) {
+                    return `⛰️ <strong>Écosystème:</strong> Zones montagneuses d'altitude`;
+                }
+            }
+        }
+        return null;
+    }
+    
+    cleanDescription(description) {
+        if (!description || typeof description !== 'string') return '';
+        
+        // Nettoyer la description
+        let cleaned = description
+            .replace(/<[^>]*>/g, '') // Supprimer les balises HTML
+            .replace(/\s+/g, ' ')     // Normaliser les espaces
+            .trim();
+        
+        // Prendre seulement la première phrase ou les premiers 100 caractères
+        const firstSentence = cleaned.split(/[.!?]/)[0];
+        if (firstSentence && firstSentence.length > 10 && firstSentence.length < 150) {
+            return firstSentence;
+        }
+        
+        // Sinon, tronquer à 100 caractères
+        if (cleaned.length > 100) {
+            cleaned = cleaned.substring(0, 97) + '...';
+        }
+        
+        return cleaned;
+    }
+    
+    getDescriptionIcon(type) {
+        const icons = {
+            'morphology': '🔍',
+            'habitat': '🌳',
+            'biology': '🧬',
+            'behaviour': '🐾',
+            'description': '📝',
+            'diagnostic_description': '🤔',
+            'general': 'ℹ️'
+        };
+        return icons[type] || '📝';
+    }
+    
+    getDescriptionLabel(type) {
+        const labels = {
+            'morphology': 'Morphologie',
+            'habitat': 'Habitat',
+            'biology': 'Biologie',
+            'behaviour': 'Comportement',
+            'description': 'Description',
+            'diagnostic_description': 'Caractéristiques',
+            'general': 'Général'
+        };
+        return labels[type] || 'Info';
+    }
+    
+    getHabitatHint(species) {
+        // Analyser la répartition pour donner des indices d'habitat
+        const occurrenceCount = species.occurrenceCount;
+        
+        // Indices basés sur le nombre d'observations et la classe
+        if (species.class === 'Aves') {
+            if (occurrenceCount > 100000) {
+                return `🌍 <strong>Répartition:</strong> Espèce très commune et largement répandue`;
+            } else if (occurrenceCount > 10000) {
+                return `🌳 <strong>Répartition:</strong> Espèce assez commune dans son aire`;
+            } else {
+                return `🏝️ <strong>Répartition:</strong> Espèce peu commune ou localisée`;
+            }
+        } else if (species.class === 'Mammalia') {
+            if (species.order === 'Carnivora') {
+                return `🦁 <strong>Régime:</strong> C'est un carnivore`;
+            } else if (species.order === 'Primates') {
+                return `🐵 <strong>Groupe:</strong> C'est un primate`;
+            } else if (species.order === 'Rodentia') {
+                return `🐭 <strong>Groupe:</strong> C'est un rongeur`;
+            } else if (species.order === 'Artiodactyla') {
+                return `🦌 <strong>Groupe:</strong> C'est un ongulé`;
+            } else {
+                return `🌳 <strong>Habitat:</strong> Vit dans des environnements variés`;
+            }
+        } else if (species.class === 'Reptilia') {
+            if (species.order === 'Squamata') {
+                return `🐍 <strong>Groupe:</strong> C'est un lézard ou un serpent`;
+            } else if (species.order === 'Testudines') {
+                return `🐢 <strong>Groupe:</strong> C'est une tortue`;
+            } else if (species.order === 'Crocodylia') {
+                return `🐊 <strong>Groupe:</strong> C'est un crocodilien`;
+            } else {
+                return `☀️ <strong>Habitat:</strong> Aime les environnements chauds`;
+            }
+        } else if (species.class === 'Amphibia') {
+            if (species.order === 'Anura') {
+                return `🐸 <strong>Groupe:</strong> C'est une grenouille ou un crapaud`;
+            } else if (species.order === 'Caudata') {
+                return `🦎 <strong>Groupe:</strong> C'est une salamandre ou un triton`;
+            } else {
+                return `💧 <strong>Habitat:</strong> Vit près de l'eau`;
+            }
+        } else if (species.class === 'Insecta') {
+            if (species.order === 'Lepidoptera') {
+                return `🦋 <strong>Groupe:</strong> C'est un papillon`;
+            } else if (species.order === 'Coleoptera') {
+                return `🪫 <strong>Groupe:</strong> C'est un coléoptère`;
+            } else if (species.order === 'Hymenoptera') {
+                return `🐝 <strong>Groupe:</strong> C'est une abeille, guêpe ou fourmi`;
+            } else {
+                return `🍃 <strong>Taille:</strong> Petit invertébré`;
+            }
+        } else {
+            // Indice générique basé sur le nombre d'observations
+            if (occurrenceCount > 50000) {
+                return `🌍 <strong>Répartition:</strong> Espèce très répandue`;
+            } else if (occurrenceCount > 5000) {
+                return `🏕️ <strong>Répartition:</strong> Espèce moyennement répandue`;
+            } else {
+                return `🌴 <strong>Répartition:</strong> Espèce localisée ou rare`;
+            }
+        }
+    }
+    
+    getSizeOrCharacteristicHint(species) {
+        // Indices sur la taille ou les caractéristiques
+        const genus = species.genus;
+        
+        // Quelques exemples selon le genre
+        if (genus === 'Panthera') {
+            return `🦁 <strong>Caractéristique:</strong> Grand félin prédateur`;
+        } else if (genus === 'Canis') {
+            return `🐕 <strong>Caractéristique:</strong> Canidé social`;
+        } else if (genus === 'Ursus') {
+            return `🐻 <strong>Caractéristique:</strong> Grand omnivore puissant`;
+        } else if (genus === 'Elephas' || genus === 'Loxodonta') {
+            return `🐘 <strong>Caractéristique:</strong> Le plus grand mammifère terrestre`;
+        } else if (genus === 'Cervus') {
+            return `🦌 <strong>Caractéristique:</strong> Les mâles portent des bois`;
+        } else if (genus === 'Aquila') {
+            return `🦅 <strong>Caractéristique:</strong> Grand rapace majestueux`;
+        } else if (genus === 'Python' || genus === 'Boa') {
+            return `🐍 <strong>Caractéristique:</strong> Grand serpent constricteur`;
+        } else if (genus === 'Crocodylus') {
+            return `🐊 <strong>Caractéristique:</strong> Grand prédateur aquatique`;
+        } else if (species.order === 'Primates') {
+            return `🤔 <strong>Caractéristique:</strong> Intelligent et social`;
+        } else if (species.order === 'Cetacea') {
+            return `🐋 <strong>Caractéristique:</strong> Mammifère marin`;
+        } else if (species.order === 'Chiroptera') {
+            return `🦇 <strong>Caractéristique:</strong> Seul mammifère volant`;
+        } else {
+            // Indice générique basé sur la famille
+            return `🏛️ <strong>Famille:</strong> ${species.family || 'Non spécifiée'}`;
         }
     }
 

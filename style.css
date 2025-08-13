@@ -695,6 +695,74 @@ body {
     font-style: italic;
 }
 
+/* Styles pour le panneau debug */
+.debug-panel {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.9);
+    color: #00ff00;
+    padding: 1rem;
+    border-radius: var(--border-radius);
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    max-width: 300px;
+    z-index: 9999;
+    box-shadow: var(--shadow-heavy);
+    border: 2px solid #00ff00;
+    display: none;
+}
+
+.debug-panel h4 {
+    color: #00ff00;
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+    text-align: center;
+}
+
+.debug-panel ul {
+    margin: 0.5rem 0;
+    padding-left: 1rem;
+}
+
+.debug-panel li {
+    margin: 0.25rem 0;
+}
+
+.debug-panel code {
+    background: rgba(0, 255, 0, 0.2);
+    padding: 2px 4px;
+    border-radius: 3px;
+    color: #00ffff;
+}
+
+.debug-panel button {
+    background: #ff0000;
+    color: white;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+    width: 100%;
+}
+
+.debug-panel button:hover {
+    background: #cc0000;
+}
+
+@media (max-width: 768px) {
+    .debug-panel {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+        font-size: 0.8rem;
+    }
+}
+
 /* Écran de résultat */
 #result-screen {
     align-items: center;
