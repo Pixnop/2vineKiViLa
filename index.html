@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2vineKiViLa - Devine Qui Vit Là</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Écran d'accueil -->
+        <div id="home-screen" class="screen active">
+            <header>
+                <h1 class="logo">2vineKiViLa</h1>
+                <p class="subtitle">Devine Qui Vit Là</p>
+            </header>
+            
+            <div class="game-modes">
+                <h2>Choisis ton mode de jeu</h2>
+                
+                <div class="mode-grid">
+                    <button class="mode-btn" data-mode="popular">
+                        <div class="mode-icon">🌟</div>
+                        <h3>Populaire</h3>
+                        <p>Espèces bien documentées<br/>(> 10k observations)</p>
+                    </button>
+                    
+                    <button class="mode-btn" data-mode="discovery">
+                        <div class="mode-icon">🔍</div>
+                        <h3>Découverte</h3>
+                        <p>Espèces moyennement documentées<br/>(1k-10k observations)</p>
+                    </button>
+                    
+                    <button class="mode-btn" data-mode="expert">
+                        <div class="mode-icon">🎓</div>
+                        <h3>Expert</h3>
+                        <p>Espèces plus rares<br/>(100-1k observations)</p>
+                    </button>
+                    
+                    <button class="mode-btn" data-mode="thematic">
+                        <div class="mode-icon">🦋</div>
+                        <h3>Thématique</h3>
+                        <p>Par classe taxonomique<br/>(Oiseaux, Mammifères...)</p>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sélection de thème pour le mode thématique -->
+            <div id="theme-selection" class="theme-selection hidden">
+                <h2>Choisis une classe</h2>
+                <div class="theme-grid">
+                    <button class="theme-btn" data-taxon="212">
+                        <div class="theme-icon">🐦</div>
+                        <span>Oiseaux</span>
+                    </button>
+                    <button class="theme-btn" data-taxon="359">
+                        <div class="theme-icon">🦌</div>
+                        <span>Mammifères</span>
+                    </button>
+                    <button class="theme-btn" data-taxon="216">
+                        <div class="theme-icon">🦋</div>
+                        <span>Insectes</span>
+                    </button>
+                    <button class="theme-btn" data-taxon="6">
+                        <div class="theme-icon">🌿</div>
+                        <span>Plantes</span>
+                    </button>
+                    <button class="theme-btn" data-taxon="44">
+                        <div class="theme-icon">🦎</div>
+                        <span>Reptiles</span>
+                    </button>
+                    <button class="theme-btn" data-taxon="131">
+                        <div class="theme-icon">🐸</div>
+                        <span>Amphibiens</span>
+                    </button>
+                </div>
+                <button id="back-to-modes" class="back-btn">← Retour aux modes</button>
+            </div>
+        </div>
+
+        <!-- Écran de chargement -->
+        <div id="loading-screen" class="screen">
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <p class="loading-text">Recherche d'une espèce mystère...</p>
+                <div class="loading-details">
+                    <span id="loading-step">Initialisation...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Écran de jeu -->
+        <div id="game-screen" class="screen">
+            <header class="game-header">
+                <div class="game-info">
+                    <span class="score">Score: <span id="current-score">0</span></span>
+                    <span class="streak">Série: <span id="current-streak">0</span></span>
+                    <span class="lives">Vies: <span id="current-lives">3</span></span>
+                </div>
+                <div class="game-controls">
+                    <button id="hint-btn" class="hint-btn">💡 Indice (<span id="hints-used">0</span>/4)</button>
+                    <button id="skip-btn" class="skip-btn">⏭️ Passer</button>
+                    <button id="quit-btn" class="quit-btn">🚪 Quitter</button>
+                </div>
+            </header>
+
+            <div class="game-content">
+                <div class="map-container">
+                    <div id="map"></div>
+                    <div class="map-overlay">
+                        <div class="question">Quelle espèce vit dans ces régions ?</div>
+                    </div>
+                </div>
+
+                <div class="game-panel">
+                    <div class="hints-container">
+                        <div id="hints-display">
+                            <!-- Les indices apparaîtront ici -->
+                        </div>
+                    </div>
+
+                    <div class="answer-container">
+                        <div class="input-group">
+                            <input type="text" id="species-input" placeholder="Tapez le nom de l'espèce... (ex: cerf, lion, chêne)" autocomplete="off">
+                            <button id="submit-btn" class="submit-btn">✓</button>
+                        </div>
+                        <div id="suggestions" class="suggestions"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Écran de résultat -->
+        <div id="result-screen" class="screen">
+            <div class="result-container">
+                <div id="result-content">
+                    <!-- Le contenu du résultat sera généré dynamiquement -->
+                </div>
+                <div class="result-actions">
+                    <button id="next-species-btn" class="primary-btn">Espèce suivante</button>
+                    <button id="back-home-btn" class="secondary-btn">Menu principal</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Écran des statistiques -->
+        <div id="stats-screen" class="screen">
+            <div class="stats-container">
+                <h2>Tes statistiques</h2>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="total-played">0</div>
+                        <div class="stat-label">Espèces jouées</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="total-found">0</div>
+                        <div class="stat-label">Espèces trouvées</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="best-streak">0</div>
+                        <div class="stat-label">Meilleure série</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="success-rate">0%</div>
+                        <div class="stat-label">Taux de réussite</div>
+                    </div>
+                </div>
+                <div class="discovered-species">
+                    <h3>Espèces découvertes</h3>
+                    <div id="species-gallery" class="species-gallery">
+                        <!-- Les espèces découvertes apparaîtront ici -->
+                    </div>
+                </div>
+                <button id="close-stats-btn" class="secondary-btn">Fermer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bouton flottant pour les statistiques -->
+    <button id="stats-btn" class="stats-float-btn">📊</button>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
