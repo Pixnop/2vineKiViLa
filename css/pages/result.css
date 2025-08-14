@@ -1,0 +1,132 @@
+/* Styles pour la page de résultat */
+.page-container {
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-primary);
+}
+
+.result-container {
+    max-width: 600px;
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-heavy);
+    overflow: hidden;
+    animation: scaleIn 0.5s ease;
+}
+
+@keyframes scaleIn {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.result-header {
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-light);
+}
+
+.result-header.success {
+    background: linear-gradient(135deg, var(--success-color), #20c997);
+}
+
+.result-header.failure {
+    background: linear-gradient(135deg, var(--danger-color), #e74c3c);
+}
+
+.result-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+}
+
+.game-stats {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.game-stats span {
+    font-weight: 500;
+}
+
+.species-reveal {
+    padding: 2rem;
+}
+
+.species-info h3 {
+    font-size: 2rem;
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+}
+
+.scientific-name {
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+    font-style: italic;
+}
+
+.species-details {
+    display: grid;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--bg-primary);
+}
+
+.label {
+    font-weight: bold;
+    color: var(--text-secondary);
+}
+
+.value {
+    color: var(--text-primary);
+}
+
+.species-image {
+    text-align: center;
+    margin: 2rem 0;
+}
+
+.species-image img {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-medium);
+}
+
+.score-info {
+    background: var(--bg-primary);
+    padding: 1rem;
+    border-radius: var(--border-radius);
+    text-align: center;
+    font-weight: bold;
+    color: var(--success-color);
+}
+
+.result-actions {
+    padding: 2rem;
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    border-top: 1px solid var(--bg-primary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .result-container {
+        margin: 1rem;
+        max-width: calc(100% - 2rem);
+    }
+    
+    .result-actions {
+        flex-direction: column;
+    }
+}

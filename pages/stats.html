@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2vineKiViLa - Statistiques</title>
+    <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/pages/stats.css">
+</head>
+<body>
+    <div class="page-container">
+        <div class="stats-container">
+            <h2>Tes statistiques</h2>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-value" id="total-played">0</div>
+                    <div class="stat-label">Espèces jouées</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="total-found">0</div>
+                    <div class="stat-label">Espèces trouvées</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="best-streak">0</div>
+                    <div class="stat-label">Meilleure série</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="success-rate">0%</div>
+                    <div class="stat-label">Taux de réussite</div>
+                </div>
+            </div>
+            <div class="discovered-species">
+                <h3>Espèces découvertes</h3>
+                <div id="species-gallery" class="species-gallery">
+                    <!-- Les espèces découvertes apparaîtront ici -->
+                </div>
+            </div>
+            <div class="actions">
+                <button id="back-home-btn" class="secondary-btn">Retour au menu</button>
+                <button id="reset-stats-btn" class="danger-btn">Réinitialiser</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="../js/pages/stats.js"></script>
+</body>
+</html>
