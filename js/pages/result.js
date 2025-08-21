@@ -147,6 +147,7 @@ class ResultPage {
             nextButton.textContent = nextButtonText;
         }
     }
+    
 
     calculateScore(hintsUsed) {
         // Système de score simple : plus on utilise d'indices, moins on gagne de points

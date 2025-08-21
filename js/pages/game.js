@@ -319,8 +319,6 @@ class GamePage {
             'Amphibia': 'Amphibiens (grenouilles, salamandres...)',
             'Reptilia': 'Reptiles (lézards, serpents, tortues...)',
             'Squamata': 'Lézards et serpents',
-            'Actinopterygii': 'Poissons à nageoires rayonnées',
-            'Chondrichthyes': 'Requins et raies',
             'Arachnida': 'Araignées et scorpions',
             'Plantae': 'Plantes',
             'Fungi': 'Champignons',
@@ -422,9 +420,6 @@ class GamePage {
             } else if (species.class === 'Reptilia' || species.order === 'Squamata' || species.order === 'Testudines') {
                 organismType = 'C\'est un reptile';
                 emoji = '🦎';
-            } else if (species.class === 'Actinopterygii' || species.class === 'Chondrichthyes') {
-                organismType = 'C\'est un poisson';
-                emoji = '🐟';
             } else if (species.class === 'Arachnida') {
                 organismType = 'C\'est un arachnide';
                 emoji = '🕷️';
@@ -520,6 +515,9 @@ class GamePage {
             }
         }
 
+        // Indices spécifiques selon le type d'animal
+        this.addTypeSpecificHints(species, availableHints);
+
         // Genre avec aide (toujours affiché car très utile)
         if (species.genus) {
             // Si la famille est similaire, donner plus de contexte sur le genre
@@ -614,68 +612,482 @@ class GamePage {
     // Ajouter des indices basés sur les données GBIF réelles
     async addGbifBasedHints(species, availableHints) {
         try {
-            // Récupérer les profils d'espèce et descriptions depuis GBIF
-            const [speciesProfiles, descriptions] = await Promise.all([
-                this.api.makeRequest(`/species/${species.taxonKey}/speciesProfiles`).catch(() => ({ results: [] })),
-                this.api.makeRequest(`/species/${species.taxonKey}/descriptions`).catch(() => ({ results: [] }))
+            // Récupérer plusieurs types de données depuis GBIF
+            const [occurrences, vernacularNames, children, metrics, synonyms] = await Promise.all([
+                // Récupérer des occurrences pour analyser les données écologiques
+                this.api.searchOccurrences({
+                    taxonKey: species.taxonKey,
+                    hasCoordinate: true,
+                    limit: 30
+                }).catch(() => ({ results: [] })),
+                
+                // Récupérer les noms vernaculaires dans différentes langues
+                this.api.getVernacularNames(species.taxonKey).catch(() => ({ results: [] })),
+                
+                // Récupérer les enfants taxonomiques (sous-espèces)
+                this.api.makeRequest(`/species/${species.taxonKey}/children`).catch(() => ({ results: [] })),
+                
+                // Récupérer les métriques de l'espèce
+                this.api.makeRequest(`/species/${species.taxonKey}/metrics`).catch(() => null),
+                
+                // Récupérer les synonymes
+                this.api.makeRequest(`/species/${species.taxonKey}/synonyms`).catch(() => ({ results: [] }))
             ]);
 
-            // Indices basés sur les profils d'espèce GBIF
-            if (speciesProfiles.results && speciesProfiles.results.length > 0) {
-                const profile = speciesProfiles.results[0];
+            // Analyser les occurrences pour extraire des patterns écologiques
+            if (occurrences.results && occurrences.results.length > 0) {
+                const occs = occurrences.results;
                 
-                // Habitat préféré
-                if (profile.habitat) {
-                    const habitats = Array.isArray(profile.habitat) ? profile.habitat : [profile.habitat];
-                    const habitatText = habitats.join(', ').toLowerCase();
+                // Analyser l'altitude moyenne
+                const elevations = occs.map(o => o.elevation).filter(e => e && e > 0);
+                if (elevations.length > 3) {
+                    const avgElevation = Math.round(elevations.reduce((a, b) => a + b, 0) / elevations.length);
+                    let elevationText = '';
+                    if (avgElevation < 500) elevationText = 'plaines et basses altitudes';
+                    else if (avgElevation < 1500) elevationText = 'collines et moyennes montagnes';
+                    else elevationText = 'montagnes et hautes altitudes';
+                    
                     availableHints.push({
                         priority: 3,
-                        text: `<span class="emoji">🏞️</span> Habitat: ${habitatText}`
+                        text: `<span class="emoji">⛰️</span> Altitude typique: ${elevationText} (~${avgElevation}m)`
                     });
                 }
-
-                // Taille/Masse si disponible
-                if (profile.massInGram || profile.sizeInMillimeter) {
-                    let sizeText = '';
-                    if (profile.sizeInMillimeter) {
-                        const sizeInCm = Math.round(profile.sizeInMillimeter / 10);
-                        sizeText = `taille: ${sizeInCm} cm`;
-                    }
-                    if (profile.massInGram) {
-                        const mass = profile.massInGram < 1000 ? `${profile.massInGram} g` : `${(profile.massInGram/1000).toFixed(1)} kg`;
-                        sizeText += sizeText ? `, masse: ${mass}` : `masse: ${mass}`;
-                    }
-                    if (sizeText) {
-                        availableHints.push({
-                            priority: 3,
-                            text: `<span class="emoji">📏</span> Dimensions: ${sizeText}`
-                        });
-                    }
+                
+                // Analyser la profondeur (pour espèces aquatiques)
+                const depths = occs.map(o => o.depth).filter(d => d && d > 0);
+                if (depths.length > 3) {
+                    const avgDepth = Math.round(depths.reduce((a, b) => a + b, 0) / depths.length);
+                    availableHints.push({
+                        priority: 3,
+                        text: `<span class="emoji">🌊</span> Profondeur moyenne: ${avgDepth}m`
+                    });
                 }
-
-                // Mode de vie (aquatique, terrestre, etc.)
-                if (profile.marine !== undefined || profile.freshwater !== undefined || profile.terrestrial !== undefined) {
-                    const environments = [];
-                    if (profile.marine) environments.push('marin');
-                    if (profile.freshwater) environments.push('eau douce');
-                    if (profile.terrestrial) environments.push('terrestre');
+                
+                // Analyser les mois d'observation pour déterminer la période d'activité
+                const months = occs.map(o => o.month).filter(m => m);
+                if (months.length > 5) {
+                    const monthCounts = {};
+                    months.forEach(m => monthCounts[m] = (monthCounts[m] || 0) + 1);
                     
-                    if (environments.length > 0) {
-                        availableHints.push({
-                            priority: 3,
-                            text: `<span class="emoji">🌍</span> Environnement: ${environments.join(', ')}`
-                        });
+                    // Trouver la période la plus active
+                    const sortedMonths = Object.entries(monthCounts).sort((a, b) => b[1] - a[1]);
+                    const topMonths = sortedMonths.slice(0, 3).map(([month]) => parseInt(month));
+                    
+                    let seasonText = '';
+                    const avgMonth = Math.round(topMonths.reduce((a, b) => a + b, 0) / topMonths.length);
+                    if (avgMonth >= 3 && avgMonth <= 5) seasonText = 'printemps';
+                    else if (avgMonth >= 6 && avgMonth <= 8) seasonText = 'été';
+                    else if (avgMonth >= 9 && avgMonth <= 11) seasonText = 'automne';
+                    else seasonText = 'hiver';
+                    
+                    availableHints.push({
+                        priority: 4,
+                        text: `<span class="emoji">📅</span> Plus actif/visible en ${seasonText}`
+                    });
+                }
+                
+                // Analyser les comportements observés
+                const behaviors = new Set();
+                occs.forEach(o => {
+                    if (o.behavior) {
+                        const behaviorList = o.behavior.toLowerCase().split(/[;,]/);
+                        behaviorList.forEach(b => behaviors.add(b.trim()));
+                    }
+                });
+                
+                if (behaviors.size > 0) {
+                    const behaviorText = Array.from(behaviors).slice(0, 3).join(', ');
+                    availableHints.push({
+                        priority: 3,
+                        text: `<span class="emoji">🎭</span> Comportements observés: ${behaviorText}`
+                    });
+                }
+                
+                // Analyser les lieux spécifiques (île, localité)
+                const islands = new Set();
+                const localities = new Set();
+                occs.forEach(o => {
+                    if (o.island) islands.add(o.island);
+                    if (o.locality && !o.locality.includes('Unknown')) {
+                        // Extraire les mots-clés des localités
+                        if (o.locality.toLowerCase().includes('forest')) localities.add('forêt');
+                        if (o.locality.toLowerCase().includes('lake') || o.locality.toLowerCase().includes('lac')) localities.add('lac');
+                        if (o.locality.toLowerCase().includes('mountain') || o.locality.toLowerCase().includes('mont')) localities.add('montagne');
+                        if (o.locality.toLowerCase().includes('river') || o.locality.toLowerCase().includes('rivi')) localities.add('rivière');
+                        if (o.locality.toLowerCase().includes('park') || o.locality.toLowerCase().includes('parc')) localities.add('parc');
+                    }
+                });
+                
+                if (islands.size > 0 && islands.size <= 3) {
+                    const islandText = Array.from(islands).join(', ');
+                    availableHints.push({
+                        priority: 3,
+                        text: `<span class="emoji">🏝️</span> Présent sur: ${islandText}`
+                    });
+                }
+                
+                if (localities.size > 0) {
+                    const localityText = Array.from(localities).slice(0, 2).join(' et ');
+                    availableHints.push({
+                        priority: 3,
+                        text: `<span class="emoji">📍</span> Fréquente: ${localityText}`
+                    });
+                }
+            }
+            
+            // Indices basés sur les noms vernaculaires multilingues
+            if (vernacularNames.results && vernacularNames.results.length > 0) {
+                // Chercher des noms dans d'autres langues que le français
+                const otherLangNames = vernacularNames.results.filter(n => 
+                    n.language && n.language !== 'fra' && n.language !== 'fr' && n.vernacularName
+                );
+                
+                if (otherLangNames.length > 0) {
+                    // Prendre un nom dans une autre langue européenne
+                    const langMap = {
+                        'eng': 'anglais',
+                        'deu': 'allemand', 
+                        'spa': 'espagnol',
+                        'ita': 'italien',
+                        'nld': 'néerlandais',
+                        'por': 'portugais'
+                    };
+                    
+                    for (const name of otherLangNames) {
+                        if (langMap[name.language]) {
+                            availableHints.push({
+                                priority: 2,
+                                text: `<span class="emoji">🌍</span> En ${langMap[name.language]}: "${name.vernacularName}"`
+                            });
+                            break;
+                        }
                     }
                 }
             }
-
-            // Descriptions supprimées car souvent trop techniques ou géographiques
-
-            // Pas d'indice de répartition car on a déjà la carte
+            
+            // Indices sur le nombre de sous-espèces
+            if (children.results && children.results.length > 0) {
+                const subspecies = children.results.filter(c => c.rank === 'SUBSPECIES');
+                if (subspecies.length > 0) {
+                    availableHints.push({
+                        priority: 2,
+                        text: `<span class="emoji">🔀</span> Possède ${subspecies.length} sous-espèce(s) reconnue(s)`
+                    });
+                }
+            }
+            
+            // Indices basés sur les métriques
+            if (metrics) {
+                // Nombre de descendants taxonomiques
+                if (metrics.numDescendants && metrics.numDescendants > 0) {
+                    let descText = '';
+                    if (metrics.numDescendants === 1) descText = 'Espèce unique sans sous-espèces';
+                    else if (metrics.numDescendants < 5) descText = `${metrics.numDescendants} variantes reconnues`;
+                    else descText = `Espèce très diversifiée (${metrics.numDescendants} variantes)`;
+                    
+                    availableHints.push({
+                        priority: 2,
+                        text: `<span class="emoji">🌿</span> ${descText}`
+                    });
+                }
+                
+                // Nombre de synonymes (indique l'histoire taxonomique)
+                if (metrics.numSynonyms && metrics.numSynonyms > 0) {
+                    let synText = '';
+                    if (metrics.numSynonyms === 1) synText = 'A eu 1 autre nom scientifique';
+                    else if (metrics.numSynonyms <= 3) synText = `A eu ${metrics.numSynonyms} autres noms scientifiques`;
+                    else synText = `Classification complexe (${metrics.numSynonyms} anciens noms)`;
+                    
+                    availableHints.push({
+                        priority: 1,
+                        text: `<span class="emoji">📚</span> ${synText}`
+                    });
+                }
+            }
+            
+            // Indices basés sur les synonymes
+            if (synonyms.results && synonyms.results.length > 0) {
+                const validSynonyms = synonyms.results.filter(s => s.scientificName && s.scientificName !== species.scientificName);
+                if (validSynonyms.length > 0) {
+                    const oldName = validSynonyms[0].scientificName.split(' ').slice(0, 2).join(' ');
+                    availableHints.push({
+                        priority: 1,
+                        text: `<span class="emoji">🔄</span> Anciennement appelé: "${oldName}"`
+                    });
+                }
+            }
 
         } catch (error) {
             debugManager.log('Erreur lors de la récupération des données GBIF pour les indices:', error);
             // Continuer sans ces indices si l'API échoue
+        }
+    }
+
+    // Ajouter des indices spécifiques selon le type d'animal
+    addTypeSpecificHints(species, availableHints) {
+        // Indices pour les OISEAUX
+        if (species.class === 'Aves') {
+            // Type de vol
+            if (species.order === 'Strigiformes') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🦉</span> Vol silencieux, actif la nuit`
+                });
+            } else if (species.order === 'Accipitriformes' || species.family === 'Accipitridae') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🦅</span> Rapace diurne, excellent chasseur`
+                });
+            } else if (species.order === 'Passeriformes') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🎵</span> Oiseau chanteur`
+                });
+            } else if (species.order === 'Anseriformes') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🦆</span> Oiseau aquatique, nage bien`
+                });
+            } else if (species.order === 'Piciformes') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🔨</span> Frappe le bois avec son bec`
+                });
+            }
+            
+            // Habitat préféré des oiseaux
+            if (species.family === 'Laridae' || species.family === 'Alcidae') {
+                availableHints.push({
+                    priority: 7,
+                    text: `<span class="emoji">🌊</span> Vit près de la mer`
+                });
+            } else if (species.family === 'Anatidae') {
+                availableHints.push({
+                    priority: 7,
+                    text: `<span class="emoji">🏞️</span> Vit près des lacs et marais`
+                });
+            }
+        }
+        
+        // Indices pour les MAMMIFÈRES
+        else if (species.class === 'Mammalia') {
+            // Mode de vie
+            if (species.order === 'Chiroptera') {
+                availableHints.push({
+                    priority: 9,
+                    text: `<span class="emoji">🦇</span> Seul mammifère volant, utilise l'écholocation`
+                });
+            } else if (species.order === 'Carnivora') {
+                if (species.family === 'Felidae') {
+                    availableHints.push({
+                        priority: 8,
+                        text: `<span class="emoji">🐾</span> Griffes rétractiles, chasse en solitaire`
+                    });
+                } else if (species.family === 'Canidae') {
+                    availableHints.push({
+                        priority: 8,
+                        text: `<span class="emoji">🐺</span> Vit souvent en meute, bon odorat`
+                    });
+                } else if (species.family === 'Ursidae') {
+                    availableHints.push({
+                        priority: 8,
+                        text: `<span class="emoji">🐻</span> Omnivore, hiberne en hiver`
+                    });
+                } else if (species.family === 'Mustelidae') {
+                    availableHints.push({
+                        priority: 8,
+                        text: `<span class="emoji">🦡</span> Corps allongé, chasseur agile`
+                    });
+                }
+            } else if (species.order === 'Rodentia') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🐿️</span> Rongeur, incisives qui poussent continuellement`
+                });
+            } else if (species.order === 'Artiodactyla') {
+                if (species.family === 'Cervidae') {
+                    availableHints.push({
+                        priority: 8,
+                        text: `<span class="emoji">🦌</span> Mâles portent des bois qui tombent chaque année`
+                    });
+                } else if (species.family === 'Bovidae') {
+                    availableHints.push({
+                        priority: 8,
+                        text: `<span class="emoji">🐐</span> Cornes permanentes, herbivore ruminant`
+                    });
+                }
+            } else if (species.order === 'Lagomorpha') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🐰</span> Grandes oreilles, saute pour se déplacer`
+                });
+            }
+        }
+        
+        // Indices pour les INSECTES
+        else if (species.class === 'Insecta') {
+            if (species.order === 'Lepidoptera') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🦋</span> Métamorphose complète (chenille → chrysalide → adulte)`
+                });
+            } else if (species.order === 'Coleoptera') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🪲</span> Élytres durs protégeant les ailes`
+                });
+            } else if (species.order === 'Hymenoptera') {
+                if (species.family && species.family.includes('idae')) {
+                    availableHints.push({
+                        priority: 8,
+                        text: `<span class="emoji">🐝</span> Souvent social, peut piquer`
+                    });
+                }
+            } else if (species.order === 'Diptera') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🪰</span> Deux ailes seulement (au lieu de 4)`
+                });
+            } else if (species.order === 'Odonata') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🦟</span> Larve aquatique, vol stationnaire possible`
+                });
+            } else if (species.order === 'Orthoptera') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🦗</span> Pattes postérieures pour sauter, chant par frottement`
+                });
+            }
+        }
+        
+        // Indices pour les AMPHIBIENS
+        else if (species.class === 'Amphibia') {
+            if (species.order === 'Anura') {
+                if (species.family === 'Ranidae') {
+                    availableHints.push({
+                        priority: 8,
+                        text: `<span class="emoji">🐸</span> Grenouille vraie, peau lisse et humide`
+                    });
+                } else if (species.family === 'Bufonidae') {
+                    availableHints.push({
+                        priority: 8,
+                        text: `<span class="emoji">🐸</span> Crapaud, peau verruqueuse`
+                    });
+                } else {
+                    availableHints.push({
+                        priority: 8,
+                        text: `<span class="emoji">🐸</span> Saute, têtard aquatique devient adulte terrestre`
+                    });
+                }
+            } else if (species.order === 'Caudata') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🦎</span> Queue persistante, régénération possible`
+                });
+            }
+        }
+        
+        // Indices pour les REPTILES
+        else if (species.class === 'Reptilia' || species.order === 'Squamata') {
+            if (species.suborder === 'Serpentes' || (species.family && species.family.includes('idae') && species.family.includes('per'))) {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🐍</span> Pas de pattes, mue régulière de la peau`
+                });
+            } else if (species.order === 'Testudines') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🐢</span> Carapace protectrice, longévité exceptionnelle`
+                });
+            } else if (species.family === 'Lacertidae' || species.family === 'Gekkonidae') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🦎</span> Lézard, peut perdre sa queue pour échapper`
+                });
+            }
+        }
+        
+        // Indices pour les ARACHNIDES
+        else if (species.class === 'Arachnida') {
+            if (species.order === 'Araneae') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🕷️</span> 8 pattes, tisse des toiles de soie`
+                });
+            } else if (species.order === 'Scorpiones') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🦂</span> Queue avec dard venimeux`
+                });
+            } else if (species.order === 'Ixodida' || species.order === 'Acari') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🕷️</span> Parasite, se nourrit de sang`
+                });
+            }
+        }
+        
+        // Indices pour les MOLLUSQUES
+        else if (species.class === 'Gastropoda' || species.phylum === 'Mollusca') {
+            if (species.class === 'Gastropoda') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🐌</span> Se déplace sur un pied musculeux, laisse une trace de mucus`
+                });
+            } else if (species.class === 'Bivalvia') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🦪</span> Deux coquilles articulées, filtre l'eau`
+                });
+            } else if (species.class === 'Cephalopoda') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🦑</span> Tentacules, intelligence développée`
+                });
+            }
+        }
+        
+        // Indices pour les CRUSTACÉS
+        else if (species.class === 'Malacostraca' || species.class === 'Crustacea') {
+            if (species.order === 'Decapoda') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🦀</span> 10 pattes, carapace dure, mue pour grandir`
+                });
+            } else if (species.order === 'Isopoda') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🦐</span> Corps aplati, vit sous les pierres humides`
+                });
+            }
+        }
+        
+        // Indices pour les PLANTES
+        else if (species.kingdom === 'Plantae') {
+            if (species.class === 'Magnoliopsida' || species.class === 'Eudicots') {
+                if (species.family === 'Rosaceae') {
+                    availableHints.push({
+                        priority: 8,
+                        text: `<span class="emoji">🌹</span> Fleurs à 5 pétales, fruits charnus souvent comestibles`
+                    });
+                } else if (species.family === 'Fabaceae') {
+                    availableHints.push({
+                        priority: 8,
+                        text: `<span class="emoji">🌱</span> Fixe l'azote dans le sol, gousses comme fruits`
+                    });
+                } else if (species.family === 'Asteraceae') {
+                    availableHints.push({
+                        priority: 8,
+                        text: `<span class="emoji">🌻</span> Capitule de nombreuses petites fleurs`
+                    });
+                }
+            } else if (species.class === 'Pinopsida' || species.family === 'Pinaceae') {
+                availableHints.push({
+                    priority: 8,
+                    text: `<span class="emoji">🌲</span> Conifère, aiguilles persistantes, cônes (pommes de pin)`
+                });
+            }
         }
     }
 
