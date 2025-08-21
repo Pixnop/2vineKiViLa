@@ -15,24 +15,113 @@ class GBIFApi {
             }
         });
 
+        // Liste de proxies CORS à essayer dans l'ordre
+        const proxyServices = [
+            // Proxy custom plus fiable
+            (targetUrl) => `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+            // Proxy thingproxy
+            (targetUrl) => `https://thingproxy.freeboard.io/fetch/${targetUrl}`,
+            // Proxy jsonp (pour APIs JSON)
+            (targetUrl) => `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`,
+            // Proxy whateverorigin
+            (targetUrl) => `https://whatever-origin.herokuapp.com/get?url=${encodeURIComponent(targetUrl)}&callback=?`,
+        ];
+
+        let lastError = null;
+
+        // Essayer d'abord directement (au cas où CORS serait résolu côté serveur)
         try {
-            const response = await fetch(url.toString());
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+            const response = await fetch(url.toString(), {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                },
+            });
+            
+            if (response.ok) {
+                return await response.json();
             }
-            return await response.json();
+            
+            // Si 503, c'est un problème temporaire du serveur
+            if (response.status === 503) {
+                throw new Error(`Server temporarily unavailable (503)`);
+            }
+            
+            throw new Error(`HTTP error! status: ${response.status}`);
         } catch (error) {
-            console.error(`API request failed for ${endpoint}:`, error);
-            throw error;
+            lastError = error;
+            console.log(`Direct request failed for ${endpoint}, trying proxies...`);
         }
+
+        // Essayer chaque proxy dans l'ordre
+        for (let i = 0; i < proxyServices.length; i++) {
+            try {
+                const proxyUrl = proxyServices[i](url.toString());
+                console.log(`Trying proxy ${i + 1}/${proxyServices.length}: ${proxyUrl.substring(0, 100)}...`);
+                
+                const response = await fetch(proxyUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Proxy returned status ${response.status}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                let data;
+                
+                // Gérer différents formats de réponse selon le proxy
+                if (i === 0) { // corsproxy.io - retourne directement le JSON
+                    data = await response.json();
+                } else if (i === 1) { // thingproxy - retourne directement le JSON
+                    data = await response.json();
+                } else if (i === 2) { // allorigins - encapsule dans contents
+                    const proxyData = await response.json();
+                    if (proxyData.contents) {
+                        data = JSON.parse(proxyData.contents);
+                    } else {
+                        throw new Error('No contents in proxy response');
+                    }
+                } else if (i === 3) { // whateverorigin - encapsule dans contents
+                    const text = await response.text();
+                    // Supprimer le callback JSONP si présent
+                    const jsonText = text.replace(/^[^{]*\{/, '{').replace(/\}[^}]*$/, '}');
+                    const proxyData = JSON.parse(jsonText);
+                    if (proxyData.contents) {
+                        data = JSON.parse(proxyData.contents);
+                    } else {
+                        throw new Error('No contents in proxy response');
+                    }
+                }
+                
+                console.log(`Proxy ${i + 1} succeeded for ${endpoint}`);
+                return data;
+                
+            } catch (proxyError) {
+                console.warn(`Proxy ${i + 1} failed for ${endpoint}:`, proxyError.message);
+                lastError = proxyError;
+                
+                // Attendre un peu avant d'essayer le prochain proxy
+                if (i < proxyServices.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            }
+        }
+
+        // Si tous les proxies ont échoué
+        console.error(`All proxies failed for ${endpoint}:`, lastError);
+        throw lastError || new Error('All proxy requests failed');
     }
 
-    // Recherche d'occurrences pour sélectionner des espèces
+    // Recherche d'occurrences pour sélectionner des espèces - LIMITE TRÈS RÉDUITE
     async searchOccurrences(filters = {}) {
         const params = {
             hasCoordinate: true,
             hasGeospatialIssue: false,
-            limit: 300,
+            limit: Math.min(filters.limit || 20, 20), // Maximum 20 résultats
             ...filters
         };
         
@@ -353,6 +442,124 @@ class GBIFApi {
             offset: Math.floor(Math.random() * 500),
             status: 'ACCEPTED'
         });
+    }
+
+    // Récupérer une image pour une espèce basée sur son nom scientifique
+    async getSpeciesImage(scientificName, taxonKey = null) {
+        try {
+            // Essayer d'abord avec le taxonKey si disponible
+            if (taxonKey) {
+                const imageFromTaxonKey = await this.getImageByTaxonKey(taxonKey);
+                if (imageFromTaxonKey) {
+                    return imageFromTaxonKey;
+                }
+            }
+
+            // Rechercher par nom scientifique
+            const searchParams = {
+                q: scientificName,
+                mediaType: 'StillImage',
+                limit: 10
+            };
+
+            const response = await this.makeRequest('/occurrence/search', searchParams);
+            
+            if (response.results && response.results.length > 0) {
+                // Chercher une occurrence avec des médias d'image
+                for (const occurrence of response.results) {
+                    if (occurrence.media && occurrence.media.length > 0) {
+                        for (const media of occurrence.media) {
+                            if (media.type === 'StillImage' && media.identifier) {
+                                return {
+                                    url: media.identifier,
+                                    license: media.license || '',
+                                    source: 'GBIF Occurrence',
+                                    occurrenceKey: occurrence.key
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Si pas d'image trouvée dans les occurrences, essayer avec iNaturalist via GBIF
+            return await this.getImageFromINaturalist(scientificName);
+
+        } catch (error) {
+            console.warn('Erreur lors de la récupération de l\'image:', error);
+            return null;
+        }
+    }
+
+    // Récupérer une image par taxonKey
+    async getImageByTaxonKey(taxonKey) {
+        try {
+            const searchParams = {
+                taxonKey: taxonKey,
+                mediaType: 'StillImage',
+                limit: 5
+            };
+
+            const response = await this.makeRequest('/occurrence/search', searchParams);
+            
+            if (response.results && response.results.length > 0) {
+                for (const occurrence of response.results) {
+                    if (occurrence.media && occurrence.media.length > 0) {
+                        for (const media of occurrence.media) {
+                            if (media.type === 'StillImage' && media.identifier) {
+                                return {
+                                    url: media.identifier,
+                                    license: media.license || '',
+                                    source: 'GBIF',
+                                    occurrenceKey: occurrence.key
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+
+            return null;
+        } catch (error) {
+            console.warn('Erreur lors de la récupération de l\'image par taxonKey:', error);
+            return null;
+        }
+    }
+
+    // Essayer de récupérer une image depuis iNaturalist via GBIF
+    async getImageFromINaturalist(scientificName) {
+        try {
+            const searchParams = {
+                q: scientificName,
+                datasetKey: '50c9509d-22c7-4a22-a47d-8c48425ef4a7', // iNaturalist dataset key
+                mediaType: 'StillImage',
+                limit: 3
+            };
+
+            const response = await this.makeRequest('/occurrence/search', searchParams);
+            
+            if (response.results && response.results.length > 0) {
+                for (const occurrence of response.results) {
+                    if (occurrence.media && occurrence.media.length > 0) {
+                        for (const media of occurrence.media) {
+                            if (media.type === 'StillImage' && media.identifier) {
+                                return {
+                                    url: media.identifier,
+                                    license: media.license || 'CC BY-NC',
+                                    source: 'iNaturalist via GBIF',
+                                    occurrenceKey: occurrence.key
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+
+            return null;
+        } catch (error) {
+            console.warn('Erreur lors de la récupération depuis iNaturalist:', error);
+            return null;
+        }
     }
 }
 

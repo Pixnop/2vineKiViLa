@@ -1,3 +1,11 @@
+/* Font face pour les emojis sur Linux */
+@font-face {
+    font-family: 'NotoColorEmoji';
+    src: url('https://fonts.gstatic.com/s/notocoloremoji/v25/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFab5s79iz64w.woff2') format('woff2');
+    font-display: swap;
+    unicode-range: U+1F000-1F02F, U+1F0A0-1F0FF, U+1F100-1F64F, U+1F680-1F6FF, U+1F700-1F77F, U+1F780-1F7FF, U+1F800-1F8FF, U+1F900-1F9FF, U+1FA00-1FA6F, U+1FA70-1FAFF, U+2600-26FF, U+2700-27BF;
+}
+
 /* Variables CSS pour la cohérence du design */
 :root {
     --primary-color: #2E8B57;
@@ -33,11 +41,25 @@
 }
 
 body {
-    font-family: var(--font-family);
+    font-family: var(--font-family), 'NotoColorEmoji', 'Apple Color Emoji', 'Segoe UI Emoji';
     background: linear-gradient(135deg, var(--bg-primary) 0%, #e3f2fd 100%);
     color: var(--text-primary);
     line-height: 1.6;
     min-height: 100vh;
+}
+
+/* Support des emojis sur tous les systèmes */
+.emoji, 
+.result-icon,
+.hint-item,
+button,
+select option {
+    font-family: 'NotoColorEmoji', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', var(--font-family);
+    font-style: normal;
+    font-weight: normal;
+    font-variant: normal;
+    text-rendering: auto;
+    -webkit-font-smoothing: antialiased;
 }
 
 /* Layout principal */

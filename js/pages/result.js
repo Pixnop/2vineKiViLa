@@ -25,28 +25,29 @@ class ResultPage {
     setupEventListeners() {
         document.getElementById('next-species-btn')?.addEventListener('click', () => {
             // Si la partie est terminée (plus de vies), relancer une nouvelle partie
-            // Sinon, relancer avec les mêmes données pour continuer
+            // Sinon, continuer avec une nouvelle espèce
             const session = this.resultData.session;
             
-            if (!session || session.lives <= 0 || this.resultData.isCorrect) {
-                // Nouvelle partie
+            if (!session || session.lives <= 0) {
+                // Nouvelle partie (plus de vies)
                 const gameData = {
                     gameMode: this.resultData.gameMode,
                     selectedTaxon: this.resultData.selectedTaxon,
+                    franceModeEnabled: this.resultData.franceModeEnabled,
                     timestamp: Date.now()
                 };
                 navigation.navigateTo('loading', gameData);
             } else {
-                // Continuer la même partie avec l'espèce actuelle
+                // Continuer avec une nouvelle espèce (conserver les vies et le score)
                 const gameData = {
                     gameMode: this.resultData.gameMode,
                     selectedTaxon: this.resultData.selectedTaxon,
-                    species: this.resultData.species,
+                    franceModeEnabled: this.resultData.franceModeEnabled,
                     currentSession: session,
                     continueGame: true,
                     timestamp: Date.now()
                 };
-                navigation.navigateTo('game', gameData);
+                navigation.navigateTo('loading', gameData);
             }
         });
 
@@ -67,13 +68,13 @@ class ResultPage {
 
         // En-tête avec succès/échec
         const headerClass = gameWon ? 'success' : 'failure';
-        const headerIcon = gameWon ? '🎉' : gameOver ? '💀' : '😔';
+        const headerIcon = gameWon ? '<span class="emoji">🎉</span>' : gameOver ? '<span class="emoji">💀</span>' : '<span class="emoji">😔</span>';
         let headerText = skipped ? 'Question passée' : 
                         gameWon ? 'Bravo !' : 
                         gameOver ? 'Game Over !' : 'Essaie encore !';
 
         // Bouton text selon l'état
-        const nextButtonText = gameOver || gameWon ? 'Nouvelle partie' : 'Continuer (même espèce)';
+        const nextButtonText = gameOver ? 'Nouvelle partie' : 'Espèce suivante';
 
         // Construire le contenu
         container.innerHTML = `
@@ -122,7 +123,7 @@ class ResultPage {
                     </div>
                     <div class="detail-item">
                         <span class="label">Indices utilisés :</span>
-                        <span class="value">${hintsUsed}/4</span>
+                        <span class="value">${hintsUsed || 0}/4</span>
                     </div>
                     ${session && session.wrongAnswers && session.wrongAnswers.length > 0 ? `
                         <div class="detail-item">

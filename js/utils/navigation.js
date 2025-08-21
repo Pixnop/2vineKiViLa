@@ -17,17 +17,40 @@ class NavigationManager {
             sessionStorage.setItem('gameData', JSON.stringify(gameData));
         }
 
-        // Rediriger vers la nouvelle page
+        // Construction de l'URL selon le contexte
+        let url;
         if (pageName === 'home' || pageName === 'index') {
-            window.location.href = '../pages/home.html';
+            url = '../pages/home.html';
         } else {
-            window.location.href = `../pages/${pageName}.html`;
+            url = `../pages/${pageName}.html`;
         }
+        
+        // Ajouter des paramètres URL si des données de jeu sont présentes
+        if (gameData && (gameData.gameMode || gameData.selectedTaxon || gameData.franceModeEnabled !== undefined)) {
+            const params = new URLSearchParams();
+            if (gameData.gameMode) params.set('mode', gameData.gameMode);
+            if (gameData.selectedTaxon) params.set('taxon', gameData.selectedTaxon);
+            if (gameData.franceModeEnabled !== undefined) params.set('france', gameData.franceModeEnabled);
+            url += '?' + params.toString();
+        }
+
+        // Rediriger vers la nouvelle page
+        window.location.href = url;
     }
 
     getGameData() {
         const data = sessionStorage.getItem('gameData');
-        return data ? JSON.parse(data) : null;
+        let gameData = data ? JSON.parse(data) : null;
+        
+        // Récupérer aussi les paramètres URL pour compléter les données
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('mode') || urlParams.has('taxon')) {
+            gameData = gameData || {};
+            if (urlParams.has('mode')) gameData.gameMode = urlParams.get('mode');
+            if (urlParams.has('taxon')) gameData.selectedTaxon = urlParams.get('taxon');
+        }
+        
+        return gameData;
     }
 
     clearGameData() {
@@ -55,7 +78,17 @@ class NavigationManager {
 
     // Méthodes de navigation spécifiques
     goToHome() {
-        this.navigateTo('home');
+        // Préserver les paramètres de jeu actuels si ils existent
+        const currentGameData = this.getGameData();
+        if (currentGameData && (currentGameData.gameMode || currentGameData.selectedTaxon)) {
+            const homeData = {
+                gameMode: currentGameData.gameMode,
+                selectedTaxon: currentGameData.selectedTaxon
+            };
+            this.navigateTo('home', homeData);
+        } else {
+            this.navigateTo('home');
+        }
     }
 
     goToGame(gameMode, selectedTaxon = null) {

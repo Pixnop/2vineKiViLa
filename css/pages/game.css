@@ -330,6 +330,133 @@
     border-left: 3px solid var(--danger-color);
 }
 
+/* Styles pour les contrôles de période */
+.map-controls {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    max-width: 400px;
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    box-shadow: var(--shadow-medium);
+    backdrop-filter: blur(10px);
+}
+
+.period-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.period-selector label {
+    font-weight: bold;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+}
+
+/* Timeline styles */
+.timeline-container {
+    position: relative;
+    padding: 0.5rem 0;
+}
+
+.timeline-track {
+    position: relative;
+    height: 6px;
+    background: #e0e0e0;
+    border-radius: 3px;
+    margin: 20px 10px;
+}
+
+.timeline-range {
+    position: absolute;
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-color), #20c997);
+    border-radius: 3px;
+    transition: none;
+}
+
+.timeline-handle {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border: 3px solid var(--primary-color);
+    border-radius: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    cursor: grab;
+    transition: transform 0.1s;
+    z-index: 2;
+}
+
+.timeline-handle:hover {
+    transform: translate(-50%, -50%) scale(1.2);
+}
+
+.timeline-handle:active {
+    cursor: grabbing;
+    transform: translate(-50%, -50%) scale(1.1);
+}
+
+.timeline-year {
+    position: absolute;
+    top: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: var(--text-primary);
+    background: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.timeline-labels {
+    display: flex;
+    justify-content: space-between;
+    margin: 0 10px;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+}
+
+.period-display {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem;
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+}
+
+#period-text {
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.reset-btn {
+    padding: 0.25rem 0.5rem;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: var(--transition);
+}
+
+.reset-btn:hover {
+    background: #236b43;
+    transform: rotate(180deg);
+}
+
+
 /* Styles pour les contrôles Leaflet */
 .leaflet-control-layers {
     background: var(--bg-secondary) !important;
@@ -467,6 +594,34 @@
         padding: 0.4rem 0.8rem;
         font-size: 0.8rem;
         border-radius: 15px;
+    }
+    
+    .map-controls {
+        bottom: 10px;
+        left: 10px;
+        right: 10px;
+        padding: 0.8rem;
+        max-width: none;
+    }
+    
+    .period-selector {
+        font-size: 0.85rem;
+    }
+    
+    .timeline-handle {
+        width: 16px;
+        height: 16px;
+    }
+    
+    .timeline-year {
+        font-size: 0.7rem;
+        padding: 1px 4px;
+    }
+    
+    .preset-btn {
+        font-size: 0.75rem;
+        padding: 0.3rem 0.5rem;
+        min-width: 50px;
     }
 }
 

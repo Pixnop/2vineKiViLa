@@ -21,19 +21,7 @@
                 <button class="mode-btn" data-mode="popular">
                     <div class="mode-icon">🌟</div>
                     <h3>Populaire</h3>
-                    <p>Espèces bien documentées<br/>(> 10k observations)</p>
-                </button>
-                
-                <button class="mode-btn" data-mode="discovery">
-                    <div class="mode-icon">🔍</div>
-                    <h3>Découverte</h3>
-                    <p>Espèces moyennement documentées<br/>(1k-10k observations)</p>
-                </button>
-                
-                <button class="mode-btn" data-mode="expert">
-                    <div class="mode-icon">🎓</div>
-                    <h3>Expert</h3>
-                    <p>Espèces plus rares<br/>(100-1k observations)</p>
+                    <p>Espèces communes et bien documentées</p>
                 </button>
                 
                 <button class="mode-btn" data-mode="thematic">
@@ -60,6 +48,10 @@
                     <div class="theme-icon">🦋</div>
                     <span>Insectes (Insecta)</span>
                 </button>
+                <button class="theme-btn" data-taxon="204" data-type="class">
+                    <div class="theme-icon">🐟</div>
+                    <span>Poissons osseux (Actinopterygii)</span>
+                </button>
                 <button class="theme-btn" data-taxon="11592253" data-type="class">
                     <div class="theme-icon">🦎</div>
                     <span>Reptiles (Squamata)</span>
@@ -68,12 +60,34 @@
                     <div class="theme-icon">🐸</div>
                     <span>Amphibiens (Amphibia)</span>
                 </button>
-                <button class="theme-btn" data-taxon="238" data-type="class">
-                    <div class="theme-icon">🐟</div>
-                    <span>Poissons osseux (Actinopterygii)</span>
+                <button class="theme-btn" data-taxon="367" data-type="class">
+                    <div class="theme-icon">🕷️</div>
+                    <span>Arachnides (Arachnida)</span>
+                </button>
+                <button class="theme-btn" data-taxon="225" data-type="class">
+                    <div class="theme-icon">🐌</div>
+                    <span>Gastéropodes (Gastropoda)</span>
+                </button>
+                <button class="theme-btn" data-taxon="220" data-type="class">
+                    <div class="theme-icon">🌿</div>
+                    <span>Plantes à fleurs (Magnoliopsida)</span>
+                </button>
+                <button class="theme-btn" data-taxon="229" data-type="class">
+                    <div class="theme-icon">🦀</div>
+                    <span>Crustacés (Malacostraca)</span>
                 </button>
             </div>
             <button id="back-to-modes" class="back-btn">← Retour aux modes</button>
+        </div>
+
+        <!-- Mode France -->
+        <div class="france-mode-section">
+            <label class="france-mode-container">
+                <input type="checkbox" id="france-mode-toggle" checked>
+                <span class="checkmark"></span>
+                <span class="france-mode-label">🇫🇷 Espèces de France uniquement</span>
+            </label>
+            <p class="france-mode-desc">Limite la sélection aux espèces présentes en France métropolitaine</p>
         </div>
         
         <div class="stats-link">

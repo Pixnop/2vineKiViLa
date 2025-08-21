@@ -1,5 +1,6 @@
 import CONFIG from '../utils/config.js';
 import { updateLoadingStep } from '../ui/loading.js';
+import { getFallbackSpecies, getRandomFallbackSpecies, enrichFallbackSpeciesWithImage } from '../data/fallback-species.js';
 
 // Classe pour la sélection intelligente d'espèces
 class SpeciesSelector {
@@ -8,62 +9,60 @@ class SpeciesSelector {
     }
 
     // Sélectionner une espèce selon le mode de jeu
-    async selectSpecies(gameMode, classKey = null) {
-        const maxAttempts = 10;
+    async selectSpecies(gameMode, classKey = null, franceModeEnabled = false) {
+        const maxAttempts = 5; // Réduit de 10 à 5
         let attempts = 0;
 
         while (attempts < maxAttempts) {
             try {
                 updateLoadingStep(`Recherche d'espèces... (${attempts + 1}/${maxAttempts})`);
                 
-                // Approche simplifiée : recherche sans filtrage complexe
-                const params = {
-                    hasCoordinate: true,
-                    hasGeospatialIssue: false,
-                    limit: 300,
-                    offset: Math.floor(Math.random() * 10000)
-                };
+                // Recherche simplifiée et directe
+                const searchConfig = { gameMode, classKey, franceModeEnabled };
+                const occurrenceData = await this.raceForBestResults(searchConfig);
                 
-                // Si mode thématique, ajouter un filtre par taxon
-                if (classKey && gameMode === 'thematic') {
-                    // Utiliser directement le taxonKey pour filtrer les descendants
-                    params.taxonKey = classKey;
-                    // Réduire l'offset pour les classes avec moins d'occurrences
-                    params.offset = Math.floor(Math.random() * 1000);
-                    
-                    if (CONFIG.DEBUG_MODE) {
-                        console.log(`DEBUG: Recherche thématique avec taxonKey=${classKey}`);
-                    }
+                // Vérifier si on a des données de fallback
+                if (occurrenceData && occurrenceData.fallbackSpecies) {
+                    console.log(`Utilisation de l'espèce de secours: ${occurrenceData.fallbackSpecies.scientificName}`);
+                    // Enrichir avec une image si nécessaire
+                    return await enrichFallbackSpeciesWithImage(occurrenceData.fallbackSpecies, this.api);
                 }
                 
-                const occurrenceData = await this.api.searchOccurrences(params);
-                
-                if (!occurrenceData.results || occurrenceData.results.length === 0) {
+                if (!occurrenceData || !occurrenceData.results || occurrenceData.results.length === 0) {
                     attempts++;
                     continue;
                 }
+                
+                // Suite du traitement avec les résultats obtenus
 
-                // Extraire les taxonKeys uniques
+                // Extraire les taxonKeys uniques et mélanger l'ordre
                 const taxonKeys = [...new Set(
                     occurrenceData.results.map(r => r.taxonKey).filter(key => key)
                 )];
+                
+                // Mélanger l'ordre des taxonKeys pour éviter toujours les mêmes en premier
+                for (let i = taxonKeys.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [taxonKeys[i], taxonKeys[j]] = [taxonKeys[j], taxonKeys[i]];
+                }
 
                 if (taxonKeys.length === 0) {
                     attempts++;
                     continue;
                 }
 
-                // Mélanger les taxonKeys pour plus d'aléatoire
-                const shuffledTaxonKeys = this.shuffleArray(taxonKeys);
+                // Évaluation séquentielle optimisée pour éviter la surcharge API
+                updateLoadingStep('Évaluation séquentielle des espèces candidates...');
                 
-                // Tester les espèces une par une
-                updateLoadingStep('Évaluation des espèces candidates...');
+                // Prendre seulement 1 ou 2 candidats pour accélérer
+                const candidateKeys = taxonKeys.slice(0, Math.min(2, taxonKeys.length));
                 
-                for (const candidateTaxonKey of shuffledTaxonKeys.slice(0, 10)) {
-                    const species = await this.evaluateSpecies(candidateTaxonKey, gameMode, classKey);
-                    if (species) {
-                        return species;
-                    }
+                // Évaluation rapide sans vérifications complexes
+                const candidates = await this.quickEvaluate(candidateKeys, gameMode, classKey);
+                
+                // Sélectionner intelligemment parmi les candidats obtenus
+                if (candidates.length > 0) {
+                    return this.selectBestCandidate(candidates);
                 }
 
                 attempts++;
@@ -73,30 +72,27 @@ class SpeciesSelector {
             }
         }
 
-        // Si échec en mode thématique, essayer sans filtre
-        if (classKey && gameMode === 'thematic') {
-            console.warn('Recherche thématique échouée, essai sans filtre de classe...');
-            return this.selectSpeciesWithoutClassFilter(gameMode, classKey);
-        }
-
-        throw new Error('Impossible de trouver une espèce appropriée après plusieurs tentatives');
+        // Si échec, utiliser directement les données de secours
+        console.warn('Recherche GBIF échouée, utilisation des données de secours...');
+        const fallbackSpecies = this.getFallbackSpeciesForGame(gameMode, classKey);
+        return await enrichFallbackSpeciesWithImage(fallbackSpecies, this.api);
     }
     
     // Méthode de secours : recherche sans filtre puis validation
     async selectSpeciesWithoutClassFilter(gameMode, expectedClassKey) {
-        const maxAttempts = 20;
+        const maxAttempts = 5; // Réduit de 20 à 5
         let attempts = 0;
         
         while (attempts < maxAttempts) {
             try {
                 updateLoadingStep(`Recherche élargie... (${attempts + 1}/${maxAttempts})`);
                 
-                // Recherche générale
+                // Recherche générale avec moins de résultats
                 const params = {
                     hasCoordinate: true,
                     hasGeospatialIssue: false,
-                    limit: 500,
-                    offset: Math.floor(Math.random() * 50000)
+                    limit: 100, // Réduit de 500 à 100
+                    offset: Math.floor(Math.random() * 10000) // Réduit de 50000 à 10000
                 };
                 
                 const occurrenceData = await this.api.searchOccurrences(params);
@@ -140,11 +136,427 @@ class SpeciesSelector {
         return shuffled;
     }
 
+    // Calculer un score de qualité pour une espèce (0-100)
+    calculateSpeciesQuality(species) {
+        let score = 0;
+        
+        // Nom vernaculaire français = très bon (+30)
+        if (species.vernacularName && 
+            !species.vernacularName.match(/^[A-Z][a-z]+ [A-Z][a-z]+$/) &&
+            species.vernacularName.length < 30) {
+            score += 30;
+        }
+        
+        // Nombre d'occurrences équilibré (+25)
+        if (species.occurrenceCount) {
+            if (species.occurrenceCount >= 1000 && species.occurrenceCount <= 50000) {
+                score += 25; // Pas trop rare, pas trop commun
+            } else if (species.occurrenceCount >= 100) {
+                score += 15; // Assez d'observations
+            } else {
+                score += 5; // Peu d'observations
+            }
+        }
+        
+        // Données taxonomiques complètes (+15)
+        const taxonomyFields = [species.kingdom, species.phylum, species.class, 
+                              species.order, species.family, species.genus];
+        const completeTaxonomy = taxonomyFields.filter(field => field).length;
+        score += (completeTaxonomy / 6) * 15;
+        
+        // Média disponible (+10)
+        if (species.media && species.media.length > 0) {
+            score += 10;
+        }
+        
+        // Distribution géographique intéressante (+10)
+        if (species.distributions && species.distributions.length > 0) {
+            const countries = species.distributions.length;
+            if (countries >= 2 && countries <= 10) {
+                score += 10; // Distribution intéressante
+            } else if (countries > 0) {
+                score += 5; // Au moins une distribution
+            }
+        }
+        
+        // Descriptions disponibles (+10)
+        if (species.descriptions && species.descriptions.length > 0) {
+            score += 10;
+        }
+        
+        return Math.min(100, score);
+    }
+
+    // Sélectionner intelligemment parmi les candidats
+    selectBestCandidate(candidates) {
+        // Trier par score combiné (70% qualité + 30% aléatoire)
+        candidates.sort((a, b) => {
+            const scoreA = (a.score * 0.7) + (a.randomFactor * 30);
+            const scoreB = (b.score * 0.7) + (b.randomFactor * 30);
+            return scoreB - scoreA;
+        });
+        
+        // Sélectionner aléatoirement parmi les 3 meilleurs
+        const topCandidates = candidates.slice(0, Math.min(3, candidates.length));
+        const selected = topCandidates[Math.floor(Math.random() * topCandidates.length)];
+        
+        if (CONFIG.DEBUG_MODE) {
+            console.log(`DEBUG: Espèce sélectionnée: ${selected.species.scientificName} (score: ${selected.score.toFixed(1)})`);
+            console.log(`DEBUG: Autres candidats:`, candidates.map(c => 
+                `${c.species.scientificName} (${c.score.toFixed(1)})`).join(', '));
+        }
+        
+        return selected.species;
+    }
+
+    // Évaluation rapide simplifiée
+    async quickEvaluate(candidateKeys, gameMode, classKey) {
+        const candidates = [];
+        
+        for (const taxonKey of candidateKeys) {
+            try {
+                updateLoadingStep(`Vérification rapide...`);
+                
+                // Timeout adapté pour l'évaluation des espèces
+                const evaluationPromise = this.evaluateSpecies(taxonKey, gameMode, classKey);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Timeout')), 5000) // Augmenté à 5 secondes
+                );
+                
+                const species = await Promise.race([evaluationPromise, timeoutPromise]);
+                
+                if (species) {
+                    candidates.push({
+                        species: species,
+                        score: 50, // Score fixe pour accélérer
+                        randomFactor: Math.random()
+                    });
+                    
+                    // Arrêt immédiat dès qu'on a un candidat
+                    break;
+                }
+            } catch (error) {
+                console.warn(`Erreur évaluation candidat ${taxonKey}:`, error.message);
+                // Si GBIF échoue complètement, essayer les données de secours
+                if (error.message.includes('Timeout') && gameMode === 'thematic' && classKey) {
+                    const fallbackSpecies = getFallbackSpecies(classKey);
+                    if (fallbackSpecies) {
+                        const enrichedSpecies = await enrichFallbackSpeciesWithImage(fallbackSpecies, this.api);
+                        candidates.push({
+                            species: enrichedSpecies,
+                            score: 50,
+                            randomFactor: Math.random()
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+        
+        return candidates;
+    }
+
+    // Attendre les meilleurs candidats avec timeout et compétition (version simplifiée)
+    async waitForBestCandidates(promises, minCandidates = 3, timeoutMs = 8000) {
+        return new Promise((resolve) => {
+            const candidates = [];
+            let resolvedCount = 0;
+            let hasResolved = false;
+            
+            // Timeout général
+            const timeout = setTimeout(() => {
+                if (!hasResolved) {
+                    hasResolved = true;
+                    resolve(candidates.filter(c => c !== null));
+                }
+            }, timeoutMs);
+            
+            // Traiter chaque promesse
+            promises.forEach((promise) => {
+                promise.then((result) => {
+                    resolvedCount++;
+                    
+                    if (result) {
+                        candidates.push(result);
+                        
+                        // Résoudre dès qu'on a assez de bons candidats
+                        if (candidates.length >= minCandidates && !hasResolved) {
+                            hasResolved = true;
+                            clearTimeout(timeout);
+                            resolve(candidates);
+                            return;
+                        }
+                    }
+                    
+                    // Ou si toutes les promesses sont terminées
+                    if (resolvedCount >= promises.length && !hasResolved) {
+                        hasResolved = true;
+                        clearTimeout(timeout);
+                        resolve(candidates.filter(c => c !== null));
+                    }
+                }).catch(() => {
+                    resolvedCount++;
+                    
+                    // Vérifier si toutes les promesses sont terminées
+                    if (resolvedCount >= promises.length && !hasResolved) {
+                        hasResolved = true;
+                        clearTimeout(timeout);
+                        resolve(candidates.filter(c => c !== null));
+                    }
+                });
+            });
+        });
+    }
+
+    // Créer plusieurs stratégies de recherche séquentielle pour éviter CORS
+    createSequentialSearchStrategies(gameMode, classKey, franceModeEnabled) {
+        const strategies = [];
+        
+        // Stratégie 1: Offset aléatoire principal - LIMITE TRÈS RÉDUITE
+        const strategy1 = {
+            params: {
+                hasCoordinate: true,
+                hasGeospatialIssue: false,
+                limit: 50  // Augmenté pour plus de choix
+            },
+            name: 'offset_random'
+        };
+        
+        if (franceModeEnabled) {
+            strategy1.params.country = 'FR';
+            strategy1.params.offset = Math.floor(Math.random() * 15000);
+        } else {
+            strategy1.params.offset = Math.floor(Math.random() * 80000);
+        }
+        
+        if (classKey && gameMode === 'thematic') {
+            strategy1.params.taxonKey = classKey;
+            strategy1.params.offset = Math.floor(Math.random() * 8000);
+        }
+        
+        strategies.push(strategy1);
+        
+        // Stratégie 2: Par pays avec années récentes - LIMITE TRÈS RÉDUITE
+        const strategy2 = {
+            params: {
+                hasCoordinate: true,
+                hasGeospatialIssue: false,
+                limit: 30,  // Compromis vitesse/choix
+                year: 2020 + Math.floor(Math.random() * 4), // 2020-2023
+                offset: Math.floor(Math.random() * 5000)
+            },
+            name: 'country_year'
+        };
+        
+        if (franceModeEnabled) {
+            strategy2.params.country = 'FR';
+        } else {
+            const randomCountries = ['FR', 'ES', 'IT', 'DE', 'GB', 'US', 'CA', 'AU', 'NL', 'BE'];
+            strategy2.params.country = randomCountries[Math.floor(Math.random() * randomCountries.length)];
+        }
+        
+        if (classKey && gameMode === 'thematic') {
+            strategy2.params.taxonKey = classKey;
+            strategy2.params.offset = Math.floor(Math.random() * 3000);
+        }
+        
+        strategies.push(strategy2);
+        
+        // Stratégie 3: Recherche large avec offset différent - LIMITE TRÈS RÉDUITE
+        const strategy3 = {
+            params: {
+                hasCoordinate: true,
+                hasGeospatialIssue: false,
+                limit: 25,  // Compromis vitesse/choix
+                offset: Math.floor(Math.random() * 25000)
+            },
+            name: 'large_search'
+        };
+        
+        if (franceModeEnabled) {
+            strategy3.params.country = 'FR';
+        }
+        
+        if (classKey && gameMode === 'thematic') {
+            strategy3.params.taxonKey = classKey;
+            strategy3.params.offset = Math.floor(Math.random() * 2000);
+        }
+        
+        strategies.push(strategy3);
+        
+        return strategies;
+    }
+
+    // Recherche séquentielle rapide avec timeout court pour éviter CORS
+    async raceForBestResults(searchPromises) {
+        // Convertir en stratégies séquentielles
+        const gameMode = searchPromises.gameMode;
+        const classKey = searchPromises.classKey;
+        const franceModeEnabled = searchPromises.franceModeEnabled;
+        
+        const strategies = this.createSequentialSearchStrategies(gameMode, classKey, franceModeEnabled);
+        
+        // Essayer séquentiellement avec timeout court
+        for (let i = 0; i < strategies.length; i++) {
+            try {
+                updateLoadingStep(`Stratégie ${i + 1}/${strategies.length} (${strategies[i].name})...`);
+                
+                // Timeout adapté pour GBIF (qui peut être lent)
+                const searchPromise = this.api.searchOccurrences(strategies[i].params);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Timeout')), 8000) // Augmenté à 8 secondes
+                );
+                
+                const data = await Promise.race([searchPromise, timeoutPromise]);
+                
+                // Si cette recherche a des résultats valides, la prendre
+                if (data && data.results && data.results.length > 0) {
+                    console.log(`Stratégie ${strategies[i].name} réussie: ${data.results.length} résultats`);
+                    return data;
+                }
+                
+                // Attendre un peu plus entre les stratégies pour éviter la surcharge
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+            } catch (error) {
+                console.warn(`Stratégie ${strategies[i].name} échouée:`, error.message);
+                // Continuer avec la stratégie suivante
+                continue;
+            }
+        }
+        
+        // Tentatives de fallback avec timeouts progressivement plus longs
+        console.warn('Toutes les stratégies ont échoué, tentatives de fallback...');
+        
+        const fallbackStrategies = [
+            {
+                params: { 
+                    hasCoordinate: true, 
+                    hasGeospatialIssue: false, 
+                    limit: 20, 
+                    offset: 0 
+                },
+                timeout: 12000,
+                name: 'fallback_basic'
+            },
+            {
+                params: { 
+                    hasCoordinate: true, 
+                    limit: 15,
+                    offset: Math.floor(Math.random() * 5000)
+                },
+                timeout: 15000,
+                name: 'fallback_minimal'
+            },
+            {
+                params: { 
+                    limit: 10,
+                    offset: Math.floor(Math.random() * 1000)
+                },
+                timeout: 20000,
+                name: 'fallback_last_resort'
+            }
+        ];
+        
+        // Ajouter les filtres selon le contexte
+        fallbackStrategies.forEach(strategy => {
+            if (franceModeEnabled) {
+                strategy.params.country = 'FR';
+            }
+            if (classKey && gameMode === 'thematic') {
+                strategy.params.taxonKey = classKey;
+            }
+        });
+        
+        for (const fallback of fallbackStrategies) {
+            try {
+                updateLoadingStep(`Tentative de secours: ${fallback.name}... (patience, GBIF est lent)`);
+                
+                const fallbackPromise = this.api.searchOccurrences(fallback.params);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Timeout fallback')), fallback.timeout)
+                );
+                
+                const result = await Promise.race([fallbackPromise, timeoutPromise]);
+                if (result && result.results && result.results.length > 0) {
+                    console.log(`Fallback réussi: ${fallback.name} avec ${result.results.length} résultats`);
+                    return result;
+                }
+            } catch (fallbackError) {
+                console.warn(`Fallback ${fallback.name} échoué:`, fallbackError.message);
+                // Attendre encore plus entre les fallbacks
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                continue;
+            }
+        }
+        
+        console.error('Tous les fallbacks GBIF ont échoué, utilisation des données locales');
+        
+        // Utiliser les données de secours locales
+        updateLoadingStep('GBIF indisponible, utilisation des données locales...');
+        
+        if (classKey && gameMode === 'thematic') {
+            const fallbackSpecies = getFallbackSpecies(classKey);
+            if (fallbackSpecies) {
+                // Retourner les données complètes de l'espèce, pas juste le taxonKey
+                return { 
+                    results: [], // Pas de résultats GBIF
+                    fallbackSpecies: fallbackSpecies // Espèce de secours complète
+                };
+            }
+        }
+        
+        // Mode populaire ou aucune espèce trouvée pour la classe
+        const randomSpecies = getRandomFallbackSpecies();
+        if (randomSpecies) {
+            return { 
+                results: [], // Pas de résultats GBIF
+                fallbackSpecies: randomSpecies // Espèce de secours complète
+            };
+        }
+        
+        throw new Error('Aucune donnée disponible - ni GBIF ni données locales');
+    }
+    
+    // Méthode pour obtenir une espèce de secours selon le mode de jeu
+    getFallbackSpeciesForGame(gameMode, classKey = null) {
+        updateLoadingStep('Utilisation des données locales de secours...');
+        
+        let fallbackSpecies;
+        
+        if (gameMode === 'thematic' && classKey) {
+            // Mode thématique : récupérer une espèce de la classe demandée
+            fallbackSpecies = getFallbackSpecies(classKey);
+            if (!fallbackSpecies) {
+                console.warn(`Aucune espèce de secours trouvée pour la classe ${classKey}`);
+                // Fallback vers une espèce aléatoire
+                fallbackSpecies = getRandomFallbackSpecies();
+            }
+        } else {
+            // Mode populaire : espèce aléatoire
+            fallbackSpecies = getRandomFallbackSpecies();
+        }
+        
+        if (!fallbackSpecies) {
+            throw new Error('Aucune espèce de secours disponible');
+        }
+        
+        console.log(`Utilisation de l'espèce de secours: ${fallbackSpecies.scientificName} (${fallbackSpecies.vernacularName})`);
+        
+        // Retourner l'espèce directement formatée pour le jeu
+        return fallbackSpecies;
+    }
+
     async evaluateSpecies(taxonKey, gameMode, expectedClassKey = null) {
         try {
             updateLoadingStep(`Évaluation de l'espèce ${taxonKey}...`);
+            
+            // Si c'est un objet d'espèce de secours (pas juste un taxonKey), le retourner directement
+            if (typeof taxonKey === 'object' && taxonKey.scientificName) {
+                return taxonKey;
+            }
 
-            // Obtenir les détails de base
+            // Obtenir les détails de base depuis GBIF
             const [speciesDetails, occurrenceCount] = await Promise.all([
                 this.api.getSpeciesDetails(taxonKey),
                 this.api.countOccurrences(taxonKey)
@@ -159,7 +571,11 @@ class SpeciesSelector {
                     '216': 'Insecta',     // Insectes
                     '11592253': 'Squamata', // Reptiles (Squamata - lézards, serpents)
                     '131': 'Amphibia',    // Amphibiens
-                    '238': 'Actinopterygii' // Poissons osseux
+                    '204': 'Actinopterygii', // Poissons osseux (corrigé de 238 à 204)
+                    '367': 'Arachnida',   // Arachnides
+                    '225': 'Gastropoda',  // Gastéropodes
+                    '220': 'Magnoliopsida', // Plantes à fleurs
+                    '229': 'Malacostraca'  // Crustacés
                 };
                 
                 const expectedClassName = classMapping[expectedClassKey];
@@ -176,7 +592,11 @@ class SpeciesSelector {
                         'Mammalia': ['Mammalia'],
                         'Insecta': ['Insecta', 'Hexapoda'],
                         'Amphibia': ['Amphibia'],
-                        'Actinopterygii': ['Actinopterygii', 'Osteichthyes']
+                        'Actinopterygii': ['Actinopterygii', 'Osteichthyes'],
+                        'Arachnida': ['Arachnida'],
+                        'Gastropoda': ['Gastropoda'],
+                        'Magnoliopsida': ['Magnoliopsida'],
+                        'Malacostraca': ['Malacostraca']
                     };
                     
                     const validVariants = classVariants[expectedClassName] || [expectedClassName];
@@ -202,6 +622,24 @@ class SpeciesSelector {
                 this.api.getSpeciesDistributions(taxonKey).catch(() => ({ results: [] }))
             ]);
 
+            // Récupérer la meilleure image disponible
+            let speciesImage = this.extractBestImage(media.results);
+            
+            // Si pas d'image dans les médias, essayer de récupérer une image avec le nom scientifique
+            if (!speciesImage) {
+                try {
+                    const imageData = await this.api.getSpeciesImage(
+                        speciesDetails.canonicalName || speciesDetails.scientificName,
+                        taxonKey
+                    );
+                    if (imageData && imageData.url) {
+                        speciesImage = imageData.url;
+                    }
+                } catch (error) {
+                    console.warn('Impossible de récupérer une image pour', speciesDetails.scientificName, error);
+                }
+            }
+
             // Construire l'objet espèce complet
             const species = {
                 taxonKey,
@@ -210,7 +648,7 @@ class SpeciesSelector {
                 taxonomicClass: this.extractTaxonomicInfo(speciesDetails),
                 occurrenceCount,
                 continent: this.extractContinentInfo(distributions.results),
-                image: this.extractBestImage(media.results),
+                image: speciesImage,
                 descriptions: this.extractDescriptions(descriptions.results),
                 distributions: this.extractDistributions(distributions.results),
                 kingdom: speciesDetails.kingdom,

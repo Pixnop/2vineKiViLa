@@ -6,12 +6,16 @@ class HomePage {
     constructor() {
         this.selectedMode = null;
         this.selectedTaxon = null;
+        this.franceModeEnabled = true; // Mode France activé par défaut
         this.init();
     }
 
     init() {
         this.setupEventListeners();
+        this.loadFromUrl();
+        this.loadSettings();
         this.loadStats();
+        this.updateFranceModeDisplay();
     }
 
     setupEventListeners() {
@@ -35,6 +39,15 @@ class HomePage {
         document.getElementById('back-to-modes')?.addEventListener('click', () => {
             this.hideThemeSelection();
         });
+
+        // Toggle mode France
+        document.getElementById('france-mode-toggle')?.addEventListener('change', (e) => {
+            this.franceModeEnabled = e.target.checked;
+            this.updateFranceModeDisplay();
+            
+            // Sauvegarder la préférence
+            localStorage.setItem('franceModeEnabled', this.franceModeEnabled);
+        });
     }
 
     selectGameMode(mode) {
@@ -43,6 +56,8 @@ class HomePage {
         if (mode === 'thematic') {
             this.showThemeSelection();
         } else {
+            // Réinitialiser le taxon pour les modes non-thématiques
+            this.selectedTaxon = null;
             this.startGame(mode);
         }
     }
@@ -68,8 +83,74 @@ class HomePage {
     }
 
     startGame(mode) {
-        // Naviguer vers le jeu avec les paramètres sélectionnés
-        navigation.goToGame(mode, this.selectedTaxon);
+        // Préparer les données de jeu avec le mode France
+        const gameData = {
+            gameMode: mode,
+            selectedTaxon: this.selectedTaxon,
+            franceModeEnabled: this.franceModeEnabled,
+            timestamp: Date.now()
+        };
+
+        // Naviguer vers le loading avec les paramètres
+        navigation.navigateTo('loading', gameData);
+    }
+
+    updateFranceModeDisplay() {
+        const toggle = document.getElementById('france-mode-toggle');
+        if (toggle) {
+            toggle.checked = this.franceModeEnabled;
+        }
+        
+        const label = document.querySelector('.france-mode-label');
+        if (label) {
+            label.textContent = this.franceModeEnabled ? 
+                '🇫🇷 Espèces de France uniquement' : 
+                '🌍 Espèces du monde entier';
+        }
+    }
+
+    loadSettings() {
+        // Charger la préférence du mode France (seulement si pas déjà définie par URL)
+        if (this.franceModeEnabled === undefined) {
+            const savedFranceMode = localStorage.getItem('franceModeEnabled');
+            if (savedFranceMode !== null) {
+                this.franceModeEnabled = savedFranceMode === 'true';
+            } else {
+                this.franceModeEnabled = true; // Par défaut : activé
+            }
+        }
+    }
+
+    loadFromUrl() {
+        // Récupérer les paramètres URL pour restaurer la sélection
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlMode = urlParams.get('mode');
+        const urlTaxon = urlParams.get('taxon');
+        const urlFranceMode = urlParams.get('france');
+        
+        // Restaurer la sélection du mode
+        if (urlMode) {
+            this.selectedMode = urlMode;
+            const modeButton = document.querySelector(`[data-mode="${urlMode}"]`);
+            if (modeButton) {
+                modeButton.classList.add('selected');
+            }
+        }
+        
+        // Restaurer la sélection du thème et afficher la sélection thématique si nécessaire
+        if (urlTaxon && urlMode === 'thematic') {
+            this.selectedTaxon = urlTaxon;
+            this.showThemeSelection();
+            const taxonButton = document.querySelector(`[data-taxon="${urlTaxon}"]`);
+            if (taxonButton) {
+                taxonButton.classList.add('selected');
+            }
+        }
+        
+        // Restaurer le mode France depuis l'URL
+        if (urlFranceMode !== null) {
+            this.franceModeEnabled = urlFranceMode === 'true';
+        }
     }
 
     loadStats() {

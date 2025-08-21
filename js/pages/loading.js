@@ -31,7 +31,7 @@ class LoadingPage {
         try {
             updateLoadingStep('Initialisation...');
             
-            const { gameMode, selectedTaxon } = this.gameData;
+            const { gameMode, selectedTaxon, franceModeEnabled, currentSession, continueGame } = this.gameData;
             
             updateLoadingStep('Recherche d\'une espèce mystère...');
             
@@ -39,7 +39,7 @@ class LoadingPage {
             
             // Sélectionner une espèce
             const startTime = performance.now();
-            const species = await this.speciesSelector.selectSpecies(gameMode, selectedTaxon);
+            const species = await this.speciesSelector.selectSpecies(gameMode, selectedTaxon, franceModeEnabled);
             const endTime = performance.now();
             
             debugManager.log('Espèce sélectionnée', {
@@ -60,11 +60,17 @@ class LoadingPage {
                 species,
                 gameMode,
                 selectedTaxon,
+                franceModeEnabled,
                 hintsUsed: 0,
                 maxHints: 4,
                 wrongAnswers: [],
                 startTime: Date.now()
             };
+            
+            // Si on continue une partie, ajouter les données de session
+            if (continueGame && currentSession) {
+                gameState.currentSession = currentSession;
+            }
 
             // Délai pour que l'utilisateur puisse voir le message de fin
             await new Promise(resolve => setTimeout(resolve, 1000));

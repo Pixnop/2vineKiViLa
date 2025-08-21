@@ -29,6 +29,34 @@
                 <div class="map-overlay">
                     <div class="question">Quelle espèce vit dans ces régions ?</div>
                 </div>
+                <div class="map-controls">
+                    <div class="period-selector">
+                        <label for="period-range">Période des observations :</label>
+                        <div class="timeline-container">
+                            <div class="timeline-track">
+                                <div class="timeline-range" id="timeline-range"></div>
+                                <div class="timeline-handle timeline-handle-left" id="handle-left" data-year="1950">
+                                    <span class="timeline-year">1950</span>
+                                </div>
+                                <div class="timeline-handle timeline-handle-right" id="handle-right" data-year="2024">
+                                    <span class="timeline-year">2024</span>
+                                </div>
+                            </div>
+                            <div class="timeline-labels">
+                                <!-- Les labels seront générés dynamiquement -->
+                                <span>1800</span>
+                                <span>1850</span>
+                                <span>1900</span>
+                                <span>1950</span>
+                                <span>2024</span>
+                            </div>
+                        </div>
+                        <div class="period-display">
+                            <span id="period-text">Chargement...</span>
+                            <button id="reset-period" class="reset-btn" title="Réinitialiser à la plage complète">↺</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="game-panel">
