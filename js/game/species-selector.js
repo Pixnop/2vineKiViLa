@@ -15,7 +15,7 @@ class SpeciesSelector {
 
         while (attempts < maxAttempts) {
             try {
-                updateLoadingStep(`Recherche d'espèces... (${attempts + 1}/${maxAttempts})`);
+                updateLoadingStep(`Recherche en cours...`);
                 
                 // Recherche simplifiée et directe
                 const searchConfig = { gameMode, classKey, franceModeEnabled };
@@ -23,7 +23,7 @@ class SpeciesSelector {
                 
                 // Vérifier si on a des données de fallback
                 if (occurrenceData && occurrenceData.fallbackSpecies) {
-                    console.log(`Utilisation de l'espèce de secours: ${occurrenceData.fallbackSpecies.scientificName}`);
+                    console.log(`Utilisation des données de secours`);
                     // Enrichir avec une image si nécessaire
                     return await enrichFallbackSpeciesWithImage(occurrenceData.fallbackSpecies, this.api);
                 }
@@ -52,7 +52,7 @@ class SpeciesSelector {
                 }
 
                 // Évaluation séquentielle optimisée pour éviter la surcharge API
-                updateLoadingStep('Évaluation séquentielle des espèces candidates...');
+                updateLoadingStep('Analyse des données...');
                 
                 // Prendre seulement 1 ou 2 candidats pour accélérer
                 const candidateKeys = taxonKeys.slice(0, Math.min(2, taxonKeys.length));
@@ -85,7 +85,7 @@ class SpeciesSelector {
         
         while (attempts < maxAttempts) {
             try {
-                updateLoadingStep(`Recherche élargie... (${attempts + 1}/${maxAttempts})`);
+                updateLoadingStep(`Recherche en cours...`);
                 
                 // Recherche générale avec moins de résultats
                 const params = {
@@ -201,9 +201,8 @@ class SpeciesSelector {
         const selected = topCandidates[Math.floor(Math.random() * topCandidates.length)];
         
         if (CONFIG.DEBUG_MODE) {
-            console.log(`DEBUG: Espèce sélectionnée: ${selected.species.scientificName} (score: ${selected.score.toFixed(1)})`);
-            console.log(`DEBUG: Autres candidats:`, candidates.map(c => 
-                `${c.species.scientificName} (${c.score.toFixed(1)})`).join(', '));
+            console.log(`DEBUG: Sélection terminée (score: ${selected.score.toFixed(1)})`);
+            console.log(`DEBUG: Nombre de candidats:`, candidates.length);
         }
         
         return selected.species;
@@ -215,7 +214,7 @@ class SpeciesSelector {
         
         for (const taxonKey of candidateKeys) {
             try {
-                updateLoadingStep(`Vérification rapide...`);
+                updateLoadingStep(`Vérification...`);
                 
                 // Timeout adapté pour l'évaluation des espèces
                 const evaluationPromise = this.evaluateSpecies(taxonKey, gameMode, classKey);
@@ -399,7 +398,7 @@ class SpeciesSelector {
         // Essayer séquentiellement avec timeout court
         for (let i = 0; i < strategies.length; i++) {
             try {
-                updateLoadingStep(`Stratégie ${i + 1}/${strategies.length} (${strategies[i].name})...`);
+                updateLoadingStep(`Recherche en cours...`);
                 
                 // Timeout adapté pour GBIF (qui peut être lent)
                 const searchPromise = this.api.searchOccurrences(strategies[i].params);
@@ -470,7 +469,7 @@ class SpeciesSelector {
         
         for (const fallback of fallbackStrategies) {
             try {
-                updateLoadingStep(`Tentative de secours: ${fallback.name}... (patience, GBIF est lent)`);
+                updateLoadingStep(`Connexion en cours...`);
                 
                 const fallbackPromise = this.api.searchOccurrences(fallback.params);
                 const timeoutPromise = new Promise((_, reject) => 
@@ -493,7 +492,7 @@ class SpeciesSelector {
         console.error('Tous les fallbacks GBIF ont échoué, utilisation des données locales');
         
         // Utiliser les données de secours locales
-        updateLoadingStep('GBIF indisponible, utilisation des données locales...');
+        updateLoadingStep('Chargement des données...');
         
         if (classKey && gameMode === 'thematic') {
             const fallbackSpecies = getFallbackSpecies(classKey);
@@ -520,7 +519,7 @@ class SpeciesSelector {
     
     // Méthode pour obtenir une espèce de secours selon le mode de jeu
     getFallbackSpeciesForGame(gameMode, classKey = null) {
-        updateLoadingStep('Utilisation des données locales de secours...');
+        updateLoadingStep('Chargement...');
         
         let fallbackSpecies;
         
@@ -541,7 +540,7 @@ class SpeciesSelector {
             throw new Error('Aucune espèce de secours disponible');
         }
         
-        console.log(`Utilisation de l'espèce de secours: ${fallbackSpecies.scientificName} (${fallbackSpecies.vernacularName})`);
+        console.log(`Données chargées`);
         
         // Retourner l'espèce directement formatée pour le jeu
         return fallbackSpecies;
@@ -549,7 +548,7 @@ class SpeciesSelector {
 
     async evaluateSpecies(taxonKey, gameMode, expectedClassKey = null) {
         try {
-            updateLoadingStep(`Évaluation de l'espèce ${taxonKey}...`);
+            updateLoadingStep(`Vérification...`);
             
             // Si c'est un objet d'espèce de secours (pas juste un taxonKey), le retourner directement
             if (typeof taxonKey === 'object' && taxonKey.scientificName) {
@@ -571,7 +570,7 @@ class SpeciesSelector {
                     '216': 'Insecta',     // Insectes
                     '11592253': 'Squamata', // Reptiles (Squamata - lézards, serpents)
                     '131': 'Amphibia',    // Amphibiens
-                    '204': 'Actinopterygii', // Poissons osseux (corrigé de 238 à 204)
+                    // '204': 'Actinopterygii', // Poissons osseux - SUPPRIMÉ
                     '367': 'Arachnida',   // Arachnides
                     '225': 'Gastropoda',  // Gastéropodes
                     '220': 'Magnoliopsida', // Plantes à fleurs
@@ -582,7 +581,7 @@ class SpeciesSelector {
                 if (expectedClassName && speciesDetails.class !== expectedClassName) {
                     // Debug - afficher la classe réelle vs attendue
                     if (CONFIG.DEBUG_MODE) {
-                        console.log(`DEBUG: Classe trouvée "${speciesDetails.class}" != attendue "${expectedClassName}" pour ${speciesDetails.scientificName}`);
+                        console.log(`DEBUG: Classe incompatible`);
                     }
                     
                     // Vérifier des variantes possibles du nom de classe
@@ -592,7 +591,7 @@ class SpeciesSelector {
                         'Mammalia': ['Mammalia'],
                         'Insecta': ['Insecta', 'Hexapoda'],
                         'Amphibia': ['Amphibia'],
-                        'Actinopterygii': ['Actinopterygii', 'Osteichthyes'],
+                        // 'Actinopterygii': ['Actinopterygii', 'Osteichthyes'], // SUPPRIMÉ
                         'Arachnida': ['Arachnida'],
                         'Gastropoda': ['Gastropoda'],
                         'Magnoliopsida': ['Magnoliopsida'],
@@ -601,7 +600,7 @@ class SpeciesSelector {
                     
                     const validVariants = classVariants[expectedClassName] || [expectedClassName];
                     if (!validVariants.includes(speciesDetails.class)) {
-                        console.log(`Espèce ${speciesDetails.scientificName} rejectée : classe "${speciesDetails.class}" non acceptée pour "${expectedClassName}"`);
+                        console.log(`Incompatibilité de classe`);
                         return null;
                     }
                 }
@@ -613,7 +612,7 @@ class SpeciesSelector {
             }
 
             // Obtenir des informations supplémentaires
-            updateLoadingStep(`Récupération des détails pour ${speciesDetails.canonicalName}...`);
+            updateLoadingStep(`Chargement des détails...`);
             
             const [vernacularNames, media, descriptions, distributions] = await Promise.all([
                 this.api.getVernacularNames(taxonKey).catch(() => ({ results: [] })),

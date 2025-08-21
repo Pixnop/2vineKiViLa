@@ -119,6 +119,111 @@
     border-top: 1px solid var(--bg-primary);
 }
 
+/* Section des informations supplémentaires */
+.additional-info-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 2px solid var(--bg-primary);
+}
+
+.additional-info-section h3 {
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+    font-size: 1.3rem;
+}
+
+.loading-spinner {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 2rem;
+    font-style: italic;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.info-card {
+    background: var(--bg-primary);
+    padding: 1rem;
+    border-radius: var(--border-radius);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.info-card h4 {
+    color: var(--secondary-color);
+    margin-bottom: 0.7rem;
+    font-size: 1rem;
+}
+
+.names-list .name-item {
+    padding: 0.3rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.names-list .name-item:last-child {
+    border-bottom: none;
+}
+
+.country-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.country-list li {
+    padding: 0.3rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.country-list li:last-child {
+    border-bottom: none;
+}
+
+.elevation-info {
+    display: flex;
+    justify-content: space-around;
+    text-align: center;
+}
+
+.elevation-info div {
+    padding: 0.5rem;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    min-width: 60px;
+}
+
+
+.conservation-status {
+    font-size: 1.2rem;
+    font-weight: bold;
+    padding: 0.5rem;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    text-align: center;
+}
+
+.classification-compact {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    padding: 0.7rem;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    text-align: center;
+}
+
+.period-info {
+    font-size: 0.9rem;
+    padding: 0.5rem;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    text-align: center;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .result-container {
@@ -128,5 +233,9 @@
     
     .result-actions {
         flex-direction: column;
+    }
+    
+    .info-grid {
+        grid-template-columns: 1fr;
     }
 }

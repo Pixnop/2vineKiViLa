@@ -33,24 +33,21 @@ class LoadingPage {
             
             const { gameMode, selectedTaxon, franceModeEnabled, currentSession, continueGame } = this.gameData;
             
-            updateLoadingStep('Recherche d\'une espèce mystère...');
+            updateLoadingStep('Préparation...');
             
-            debugManager.log('Début sélection espèce', { gameMode, selectedTaxon });
+            debugManager.log('Début sélection', { gameMode });
             
             // Sélectionner une espèce
             const startTime = performance.now();
             const species = await this.speciesSelector.selectSpecies(gameMode, selectedTaxon, franceModeEnabled);
             const endTime = performance.now();
             
-            debugManager.log('Espèce sélectionnée', {
-                species: species.scientificName,
-                selectionTime: `${Math.round(endTime - startTime)}ms`,
-                taxonKey: species.taxonKey,
-                occurrences: species.occurrenceCount
+            debugManager.log('Sélection terminée', {
+                selectionTime: `${Math.round(endTime - startTime)}ms`
             });
             
             if (!species) {
-                throw new Error('Impossible de trouver une espèce appropriée');
+                throw new Error('Impossible de charger les données');
             }
 
             updateLoadingStep('Préparation du jeu...');
@@ -95,7 +92,7 @@ class LoadingPage {
                 errorDiv.style.marginTop = '2rem';
                 errorDiv.innerHTML = `
                     <p style="color: var(--danger-color); margin-bottom: 1rem;">
-                        Une erreur est survenue lors de la recherche d'espèce.
+                        Une erreur est survenue lors du chargement.
                     </p>
                     <button onclick="location.href='home.html'" class="secondary-btn">
                         Retourner à l'accueil
