@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2vineKiViLa - Jeu</title>
+    <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/pages/game.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+    <div class="page-container">
+        <header class="game-header">
+            <div class="game-info">
+                <span class="score">Score: <span id="current-score">0</span></span>
+                <span class="streak">Série: <span id="current-streak">0</span></span>
+                <span class="lives">Vies: <span id="current-lives">3</span></span>
+            </div>
+            <div class="game-controls">
+                <button id="hint-btn" class="hint-btn">💡 Indice (<span id="hints-used">0</span>/4)</button>
+                <button id="skip-btn" class="skip-btn">⏭️ Passer</button>
+                <button id="quit-btn" class="quit-btn">🚪 Quitter</button>
+            </div>
+        </header>
+
+        <div class="game-content">
+            <div class="map-container">
+                <div id="map"></div>
+                <div class="map-overlay">
+                    <div class="question">Quelle espèce vit dans ces régions ?</div>
+                </div>
+                <div class="map-controls">
+                    <div class="period-selector">
+                        <label for="period-range">Période des observations :</label>
+                        <div class="timeline-container">
+                            <div class="timeline-track">
+                                <div class="timeline-range" id="timeline-range"></div>
+                                <div class="timeline-handle timeline-handle-left" id="handle-left" data-year="1950">
+                                    <span class="timeline-year">1950</span>
+                                </div>
+                                <div class="timeline-handle timeline-handle-right" id="handle-right" data-year="2024">
+                                    <span class="timeline-year">2024</span>
+                                </div>
+                            </div>
+                            <div class="timeline-labels">
+                                <!-- Les labels seront générés dynamiquement -->
+                                <span>1800</span>
+                                <span>1850</span>
+                                <span>1900</span>
+                                <span>1950</span>
+                                <span>2024</span>
+                            </div>
+                        </div>
+                        <div class="period-display">
+                            <span id="period-text">Chargement...</span>
+                            <button id="reset-period" class="reset-btn" title="Réinitialiser à la plage complète">↺</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="game-panel">
+                <div class="hints-container">
+                    <div id="hints-display">
+                        <!-- Les indices apparaîtront ici -->
+                    </div>
+                </div>
+
+                <div class="answer-container">
+                    <div class="input-group">
+                        <input type="text" id="species-input" placeholder="Tapez le nom de l'espèce... (ex: cerf, lion, chêne)" autocomplete="off">
+                        <button id="submit-btn" class="submit-btn">✓</button>
+                    </div>
+                    <div id="suggestions" class="suggestions"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module" src="../js/pages/game.js"></script>
+</body>
+</html>

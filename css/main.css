@@ -1,0 +1,145 @@
+/* Font face pour les emojis sur Linux */
+@font-face {
+    font-family: 'NotoColorEmoji';
+    src: url('https://fonts.gstatic.com/s/notocoloremoji/v25/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFab5s79iz64w.woff2') format('woff2');
+    font-display: swap;
+    unicode-range: U+1F000-1F02F, U+1F0A0-1F0FF, U+1F100-1F64F, U+1F680-1F6FF, U+1F700-1F77F, U+1F780-1F7FF, U+1F800-1F8FF, U+1F900-1F9FF, U+1FA00-1FA6F, U+1FA70-1FAFF, U+2600-26FF, U+2700-27BF;
+}
+
+/* Variables CSS pour la cohérence du design */
+:root {
+    --primary-color: #2E8B57;
+    --secondary-color: #FFD700;
+    --accent-color: #FF6B6B;
+    --success-color: #28a745;
+    --danger-color: #dc3545;
+    --warning-color: #ffc107;
+    --info-color: #17a2b8;
+    
+    --bg-primary: #f8f9fa;
+    --bg-secondary: #ffffff;
+    --bg-dark: #343a40;
+    
+    --text-primary: #343a40;
+    --text-secondary: #6c757d;
+    --text-light: #ffffff;
+    
+    --border-radius: 12px;
+    --shadow-light: 0 2px 10px rgba(0, 0, 0, 0.1);
+    --shadow-medium: 0 4px 20px rgba(0, 0, 0, 0.15);
+    --shadow-heavy: 0 8px 30px rgba(0, 0, 0, 0.2);
+    
+    --transition: all 0.3s ease;
+    --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Reset et styles de base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font-family), 'NotoColorEmoji', 'Apple Color Emoji', 'Segoe UI Emoji';
+    background: linear-gradient(135deg, var(--bg-primary) 0%, #e3f2fd 100%);
+    color: var(--text-primary);
+    line-height: 1.6;
+    min-height: 100vh;
+}
+
+/* Support des emojis sur tous les systèmes */
+.emoji, 
+.result-icon,
+.hint-item,
+button,
+select option {
+    font-family: 'NotoColorEmoji', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', var(--font-family);
+    font-style: normal;
+    font-weight: normal;
+    font-variant: normal;
+    text-rendering: auto;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Layout principal */
+.page-container {
+    min-height: 100vh;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Boutons communs */
+.primary-btn, .secondary-btn, .danger-btn {
+    border: none;
+    padding: 1rem 2rem;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: 1rem;
+    font-weight: bold;
+}
+
+.primary-btn {
+    background: var(--primary-color);
+    color: var(--text-light);
+}
+
+.primary-btn:hover {
+    background: #236b43;
+    transform: translateY(-2px);
+}
+
+.secondary-btn {
+    background: var(--text-secondary);
+    color: var(--text-light);
+}
+
+.secondary-btn:hover {
+    background: #5a6268;
+    transform: translateY(-2px);
+}
+
+.danger-btn {
+    background: var(--danger-color);
+    color: var(--text-light);
+}
+
+.danger-btn:hover {
+    background: #c82333;
+    transform: translateY(-2px);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Import des composants */
+@import url('components/debug.css');
+
+/* Focus accessibilité */
+button:focus,
+input:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .page-container {
+        padding: 10px;
+    }
+    
+    .primary-btn, .secondary-btn, .danger-btn {
+        padding: 0.8rem 1.5rem;
+        font-size: 0.9rem;
+    }
+}

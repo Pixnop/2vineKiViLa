@@ -1,0 +1,242 @@
+/* Styles pour la page d'accueil */
+
+/* Mode France */
+.france-mode-section {
+    margin: 2rem auto;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-light);
+    border-left: 4px solid #0055A4; /* Couleur bleue du drapeau français */
+    max-width: 500px;
+    text-align: center;
+}
+
+.france-mode-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    user-select: none;
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: white;
+}
+
+.france-mode-container input[type="checkbox"] {
+    display: none;
+}
+
+.checkmark {
+    width: 24px;
+    height: 24px;
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    position: relative;
+    transition: var(--transition);
+    border: 2px solid rgba(255, 255, 255, 0.4);
+}
+
+.france-mode-container input:checked ~ .checkmark {
+    background-color: #0055A4;
+    border-color: #0055A4;
+}
+
+.checkmark:after {
+    content: "";
+    position: absolute;
+    display: none;
+    left: 7px;
+    top: 3px;
+    width: 6px;
+    height: 12px;
+    border: solid white;
+    border-width: 0 3px 3px 0;
+    transform: rotate(45deg);
+}
+
+.france-mode-container input:checked ~ .checkmark:after {
+    display: block;
+}
+
+.france-mode-desc {
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.8);
+    font-style: italic;
+}
+.page-container {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: linear-gradient(135deg, var(--primary-color), #20b2aa);
+    color: var(--text-light);
+}
+
+.logo {
+    font-size: clamp(3rem, 8vw, 5rem);
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.subtitle {
+    font-size: clamp(1.2rem, 3vw, 1.8rem);
+    opacity: 0.9;
+    margin-bottom: 3rem;
+}
+
+.game-modes h2 {
+    font-size: clamp(1.5rem, 4vw, 2rem);
+    margin-bottom: 2rem;
+}
+
+.mode-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.mode-btn {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: none;
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    cursor: pointer;
+    transition: var(--transition);
+    box-shadow: var(--shadow-medium);
+    text-align: center;
+}
+
+.mode-btn:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-heavy);
+}
+
+.mode-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.mode-btn h3 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    color: var(--primary-color);
+}
+
+.mode-btn p {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+/* Sélection de thème */
+.theme-selection {
+    margin-top: 2rem;
+    animation: slideDown 0.5s ease;
+}
+
+.theme-selection.hidden {
+    display: none;
+}
+
+.theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    max-width: 800px;  /* Augmenté pour accueillir plus de compartiments */
+    margin: 2rem auto;
+}
+
+.theme-btn {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: none;
+    border-radius: var(--border-radius);
+    padding: 1.5rem 1rem;
+    cursor: pointer;
+    transition: var(--transition);
+    box-shadow: var(--shadow-light);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.theme-btn:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-medium);
+}
+
+.theme-icon {
+    font-size: 2rem;
+}
+
+.back-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--text-light);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: var(--border-radius);
+    padding: 0.75rem 1.5rem;
+    cursor: pointer;
+    transition: var(--transition);
+    margin-top: 2rem;
+}
+
+.back-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.stats-link {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+}
+
+.stats-link a {
+    color: var(--text-light);
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.75rem 1.5rem;
+    border-radius: var(--border-radius);
+    transition: var(--transition);
+}
+
+.stats-link a:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+@keyframes slideDown {
+    from { transform: translateY(-20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .mode-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .theme-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .logo {
+        font-size: 2.5rem;
+    }
+    
+    .subtitle {
+        font-size: 1.2rem;
+    }
+    
+    .theme-grid {
+        grid-template-columns: 1fr;
+    }
+}

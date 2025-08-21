@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2vineKiViLa - Accueil</title>
+    <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/pages/home.css">
+</head>
+<body>
+    <div class="page-container">
+        <header>
+            <h1 class="logo">2vineKiViLa</h1>
+            <p class="subtitle">Devine Qui Vit Là</p>
+        </header>
+        
+        <div class="game-modes">
+            <h2>Choisis ton mode de jeu</h2>
+            
+            <div class="mode-grid">
+                <button class="mode-btn" data-mode="popular">
+                    <div class="mode-icon">🌟</div>
+                    <h3>Populaire</h3>
+                    <p>Espèces communes et bien documentées</p>
+                </button>
+                
+                <button class="mode-btn" data-mode="thematic">
+                    <div class="mode-icon">🦋</div>
+                    <h3>Thématique</h3>
+                    <p>Par classe taxonomique<br/>(Oiseaux, Mammifères...)</p>
+                </button>
+            </div>
+        </div>
+
+        <!-- Sélection de thème pour le mode thématique -->
+        <div id="theme-selection" class="theme-selection hidden">
+            <h2>Choisis une classe</h2>
+            <div class="theme-grid">
+                <button class="theme-btn" data-taxon="212" data-type="class">
+                    <div class="theme-icon">🐦</div>
+                    <span>Oiseaux (Aves)</span>
+                </button>
+                <button class="theme-btn" data-taxon="359" data-type="class">
+                    <div class="theme-icon">🦌</div>
+                    <span>Mammifères (Mammalia)</span>
+                </button>
+                <button class="theme-btn" data-taxon="216" data-type="class">
+                    <div class="theme-icon">🦋</div>
+                    <span>Insectes (Insecta)</span>
+                </button>
+                <button class="theme-btn" data-taxon="204" data-type="class">
+                    <div class="theme-icon">🐟</div>
+                    <span>Poissons osseux (Actinopterygii)</span>
+                </button>
+                <button class="theme-btn" data-taxon="11592253" data-type="class">
+                    <div class="theme-icon">🦎</div>
+                    <span>Reptiles (Squamata)</span>
+                </button>
+                <button class="theme-btn" data-taxon="131" data-type="class">
+                    <div class="theme-icon">🐸</div>
+                    <span>Amphibiens (Amphibia)</span>
+                </button>
+                <button class="theme-btn" data-taxon="367" data-type="class">
+                    <div class="theme-icon">🕷️</div>
+                    <span>Arachnides (Arachnida)</span>
+                </button>
+                <button class="theme-btn" data-taxon="225" data-type="class">
+                    <div class="theme-icon">🐌</div>
+                    <span>Gastéropodes (Gastropoda)</span>
+                </button>
+                <button class="theme-btn" data-taxon="220" data-type="class">
+                    <div class="theme-icon">🌿</div>
+                    <span>Plantes à fleurs (Magnoliopsida)</span>
+                </button>
+                <button class="theme-btn" data-taxon="229" data-type="class">
+                    <div class="theme-icon">🦀</div>
+                    <span>Crustacés (Malacostraca)</span>
+                </button>
+            </div>
+            <button id="back-to-modes" class="back-btn">← Retour aux modes</button>
+        </div>
+
+        <!-- Mode France -->
+        <div class="france-mode-section">
+            <label class="france-mode-container">
+                <input type="checkbox" id="france-mode-toggle" checked>
+                <span class="checkmark"></span>
+                <span class="france-mode-label">🇫🇷 Espèces de France uniquement</span>
+            </label>
+            <p class="france-mode-desc">Limite la sélection aux espèces présentes en France métropolitaine</p>
+        </div>
+        
+        <div class="stats-link">
+            <a href="stats.html">Voir mes statistiques</a>
+        </div>
+    </div>
+
+    <script type="module" src="../js/pages/home.js"></script>
+</body>
+</html>

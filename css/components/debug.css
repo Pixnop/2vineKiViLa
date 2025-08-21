@@ -1,0 +1,422 @@
+/* Styles pour le panneau debug moderne */
+.debug-panel {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%);
+    color: #00ff41;
+    padding: 0;
+    border-radius: 16px;
+    font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Courier New', monospace;
+    font-size: 0.85rem;
+    max-width: 380px;
+    z-index: 9999;
+    box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(0, 255, 65, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 255, 65, 0.2);
+    overflow: hidden;
+    animation: debugPanelSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform-origin: top right;
+}
+
+@keyframes debugPanelSlideIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.8) translateY(-20px);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.debug-header {
+    background: linear-gradient(90deg, rgba(0, 255, 65, 0.15) 0%, rgba(0, 255, 65, 0.05) 100%);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgba(0, 255, 65, 0.2);
+    position: relative;
+}
+
+.debug-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #00ff41, transparent);
+    opacity: 0.6;
+}
+
+.debug-header h4 {
+    margin: 0;
+    color: #00ff41;
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.debug-header h4::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #00ff41;
+    box-shadow: 0 0 8px #00ff41;
+    animation: debugPulse 2s infinite;
+}
+
+@keyframes debugPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+.debug-close {
+    background: linear-gradient(145deg, #ff4757 0%, #ff3742 100%);
+    color: white;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(255, 71, 87, 0.3);
+}
+
+.debug-close:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 15px rgba(255, 71, 87, 0.5);
+    background: linear-gradient(145deg, #ff6b7a 0%, #ff4757 100%);
+}
+
+.debug-content {
+    padding: 1.25rem;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.debug-content > div {
+    margin: 0.75rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+    transition: all 0.2s ease;
+}
+
+.debug-content > div:hover {
+    background: rgba(0, 255, 65, 0.05);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    margin: 0.75rem -0.75rem;
+}
+
+.debug-content > div:last-child {
+    border-bottom: none;
+}
+
+.debug-content strong {
+    color: #00d4ff;
+    font-weight: 600;
+    min-width: 80px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.debug-content span:not(strong) {
+    color: #ffffff;
+    font-family: inherit;
+    background: rgba(0, 255, 65, 0.1);
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+.debug-content hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.3), transparent);
+    margin: 1rem -1.25rem;
+    position: relative;
+}
+
+.debug-content hr::after {
+    content: '●';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background: #1a1a1a;
+    color: #00ff41;
+    padding: 0 0.5rem;
+    font-size: 0.6rem;
+}
+
+.debug-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.75rem;
+    margin: 1.5rem 0 1rem;
+}
+
+.debug-btn {
+    background: linear-gradient(145deg, rgba(0, 255, 65, 0.1) 0%, rgba(0, 255, 65, 0.05) 100%);
+    color: #00ff41;
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-family: inherit;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.debug-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.2), transparent);
+    transition: left 0.5s ease;
+}
+
+.debug-btn:hover::before {
+    left: 100%;
+}
+
+.debug-btn:hover {
+    background: linear-gradient(145deg, rgba(0, 255, 65, 0.2) 0%, rgba(0, 255, 65, 0.1) 100%);
+    border-color: rgba(0, 255, 65, 0.6);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 255, 65, 0.2);
+}
+
+.debug-btn:active {
+    transform: translateY(0);
+}
+
+.debug-species {
+    font-size: 0.8rem;
+    background: rgba(0, 255, 65, 0.05);
+    border-radius: 8px;
+    padding: 1rem;
+    border: 1px solid rgba(0, 255, 65, 0.1);
+    margin-top: 0.5rem;
+}
+
+.debug-species > div {
+    margin: 0.5rem 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.debug-species strong {
+    color: #00d4ff;
+    min-width: auto;
+}
+
+/* Mode debug - indicateur visuel moderne */
+.debug-mode::before {
+    content: '🐛 DEBUG MODE';
+    position: fixed;
+    top: 0;
+    left: 0;
+    background: linear-gradient(135deg, #ff4757 0%, #ff6b7a 50%, #ff4757 100%);
+    color: white;
+    padding: 0.6rem 1.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
+    z-index: 10000;
+    border-bottom-right-radius: 12px;
+    box-shadow: 
+        0 4px 15px rgba(255, 71, 87, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    animation: debugPulseIndicator 3s ease-in-out infinite;
+    letter-spacing: 1px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@keyframes debugPulseIndicator {
+    0%, 100% { 
+        opacity: 0.9;
+        transform: scale(1);
+    }
+    50% { 
+        opacity: 1;
+        transform: scale(1.02);
+        box-shadow: 
+            0 6px 20px rgba(255, 71, 87, 0.6),
+            inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+}
+
+/* Tooltip amélioré pour les éléments debug */
+[data-debug-tooltip] {
+    position: relative;
+    cursor: help;
+}
+
+[data-debug-tooltip]::after {
+    content: attr(data-debug-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: #00ff41;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    z-index: 10001;
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    backdrop-filter: blur(10px);
+}
+
+[data-debug-tooltip]:hover::after {
+    opacity: 1;
+}
+
+/* Scrollbar stylisé pour le debug */
+.debug-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.debug-content::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 3px;
+}
+
+.debug-content::-webkit-scrollbar-thumb {
+    background: linear-gradient(to bottom, #00ff41, rgba(0, 255, 65, 0.5));
+    border-radius: 3px;
+}
+
+.debug-content::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(to bottom, #00ff65, #00ff41);
+}
+
+/* Responsive pour mobile */
+@media (max-width: 768px) {
+    .debug-panel {
+        position: fixed;
+        top: 50px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+        font-size: 0.8rem;
+        border-radius: 12px;
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+    
+    .debug-header {
+        padding: 0.875rem 1rem;
+    }
+    
+    .debug-header h4 {
+        font-size: 1rem;
+    }
+    
+    .debug-content {
+        padding: 1rem;
+    }
+    
+    .debug-actions {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+    
+    .debug-btn {
+        padding: 0.75rem;
+        font-size: 0.85rem;
+    }
+    
+    .debug-species {
+        padding: 0.75rem;
+    }
+    
+    .debug-mode::before {
+        font-size: 0.7rem;
+        padding: 0.5rem 1rem;
+        border-bottom-right-radius: 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    .debug-panel {
+        top: 40px;
+        left: 5px;
+        right: 5px;
+        font-size: 0.75rem;
+    }
+    
+    .debug-content > div {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .debug-content strong {
+        min-width: auto;
+    }
+}
+
+/* Animation d'entrée pour les nouvelles lignes de debug */
+@keyframes debugLineAppear {
+    0% {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.debug-content .debug-new-line {
+    animation: debugLineAppear 0.4s ease-out;
+}
+
+/* État de chargement pour le debug */
+.debug-loading {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(0, 255, 65, 0.3);
+    border-top: 2px solid #00ff41;
+    border-radius: 50%;
+    animation: debugSpin 1s linear infinite;
+    margin-left: 0.5rem;
+}
+
+@keyframes debugSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
